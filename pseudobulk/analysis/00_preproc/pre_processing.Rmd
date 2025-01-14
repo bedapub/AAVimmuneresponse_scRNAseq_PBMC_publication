@@ -1,0 +1,71 @@
+---
+params:
+  title:
+    label: "Title"
+    value: "AAV-Gene-Therapy-40045: Pseudobulk - pre-processing"
+    input: text
+title: "`r params$title`"
+author: '`r params$author`'
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, message = FALSE}
+# Knitr options (important to set error=FALSE, otherwise the evaluation does not stop after an error!)
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, message = TRUE, warning = TRUE, error = FALSE)
+# Set TRUE to enable rmarkdown cache
+knitr::opts_chunk$set(cache = FALSE, cache.lazy = FALSE)
+
+# Libraries
+library(biokitr)
+library(stringr)
+
+# Parameters
+scMetaFile <- "../../../Pseudobulk/Pseudobulk.meta"
+pseudoBulkGctDir <- "../../../Pseudobulk"
+cellTypesFile <- "../../data/cell_types.txt"
+```
+
+# Meta data
+
+## Preparing meta data
+
+Loading meta-data from: ``r scMetaFile``
+
+```{r meta_data}
+# sc sample annotation from Klas
+sampleAnnot.sc <- fread(scMetaFile)
+
+```
+
+
+## Exporting updated meta data
+
+Writing to: `../../data/sample_annot.txt`
+
+```{r}
+# Remove outdated response
+#sampleAnnot.sc[, ResponseOutdated := NULL]
+# Save
+writeTsv(sampleAnnot.sc, "../../data/sample_annot.txt")
+```
+
+
+### List of samples with sc data
+
+```{r patients}
+dt <- unique(sampleAnnot.sc[, list(CONDITION, individual_id, compound_name, treatment_id, treatment_time, batch, IFNGresp)])
+setorder(dt, individual_id, compound_name, treatment_time, treatment_id, batch, IFNGresp)
+printTable(dt)
+```
+
+

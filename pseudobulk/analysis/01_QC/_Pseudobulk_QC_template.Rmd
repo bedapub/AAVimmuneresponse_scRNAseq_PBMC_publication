@@ -1,0 +1,1124 @@
+---
+params:
+  title:
+    label: "Title of the report"
+    value: "QC"
+    input: text
+  biokit_output_dir:
+    label: "Path to biokit output directory. If the data was not processed with biokit, leave empty and set paths to required files using the respective parameters"
+    value: ""  # "path/to/bksnake/results"
+    input: file
+  sample_annot_file:
+    label: "Sample annotation file (leave empty to use <biokit_output_dir>/annot/phenoData.meta)"
+    value: ""  # "path/to/file.txt"
+    input: file
+  use_refseq_biokit_output:
+    label: "Set TRUE to use refseq, FALSE to use ensembl gene annotation from the biokit output (this parameter is ignored when gene_annot_file and gene_length_file are set below)"
+    value: true
+    input: checkbox
+  color_vars:
+    label: "List of sample annotation columns used to color plots (separate plots will be generated for each variable) [Known issue: if you are using a custom sample_annot_file (not biokit phenoData.meta) and you don't have an ID_GROUP column, keep GROUP as the first variable here]"
+    value: [GROUP] # ["GROUP", "Indiction", "TimePoint"]
+    input: text
+  tissue_specific_plots:
+    label: "Set true to include separate analyses for each tissue ('tissue_column' is used for grouping, can be something other than tissue)"
+    value: true
+    input: checkbox
+  tissue_column:
+    label: "Name of column used to group samples for tissue-specific plots (leave empty to use first col that matches 'tissue' (not case-sensitive))"
+    value: 
+    input: text
+  tissue_min_num_samples:
+    label: "The minimum number of samples of a given tissue (see tissue_column) to perform a tissue-specific PCA analysis"
+    value: 10
+    input: numeric
+  include_failed_samples:
+    label: "Do not exclude failed samples (qc_fail_ids) from analysis in this report (normalization, PCA, ...): usually NOT recommended"
+    value: false
+    input: checkbox
+  qc_fail_ids:
+    label: "List of sample IDs to be excluded from downstream analysis (matched in ID column of sample annotation)"
+    value: []   # [sample_1, sample_2]
+    input: text
+  qc_fail_desc:
+    label: "List with short comment/reason for each excluded sample (see qc_fail_ids above)"
+    value: []   # ["Outlier PCA", "Low DV200; Outlier"]
+    input: text
+  qc_warning_ids:
+    label: "List of sample IDs with manual QC warnings (matched in ID column of sample annotation, added to any automatic warnings)"
+    value: []   # [sample_X, sample_Y]
+    input: text
+  qc_warning_desc:
+    label: "List with short comment/reason for each manually added QC warning (see qc_warning_ids above)"
+    value: []    # ["Outlier PCA", "Distinct expression distribution"]
+    input: text
+  auto_qc_flags:
+    label: "Define one or more conditions to automatically set QC warning and/or fail flags"
+    value:
+      #condition1:
+      #  column_name: "DV200" # A column name in the sample annotation (including the loaded QC stats)
+      #  cutoff: 30 # A cutoff
+      #  direction: "<" # Set flag if value is '<', '<=', '>', '>=' or '=' the cutoff value ('=' can also be used for categorical variables or strings)
+      #  flag: "WARNING" # Which flag to set (WARNING or FAIL)
+      #condition2:
+      #  column_name: "Reads_Duplicate" # A column name in the sample annotation (including the loaded QC stats)
+      #  cutoff: 90 # A cutoff
+      #  direction: ">" # Set flag if value is '<', '<=', '>', '>=' or '=' the cutoff value ('=' can also be used for categorical variables or strings)
+      #  flag: "WARNING" # Which flag to set (WARNING or FAIL)
+  cpm_cutoff:
+    label: "Filter genes that have not CPM>cpm_cutoff AND count>count_cutoff in at least num_samples_expressed_cutoff samples. Does NOT affect exported data."
+    value: 1
+    input: numeric
+  count_cutoff:
+    label: "Filter genes that have not CPM>cpm_cutoff AND count>count_cutoff in at least num_samples_expressed_cutoff samples. The count_cutoff is mainly relevant when there are samples with very low total number of reads, such as in pseudobulk data. Does NOT affect exported data."
+    value: 10
+    input: numeric
+  num_samples_expressed_cutoff:
+    label: "Filter genes that have not CPM>cpm_cutoff in at least num_samples_expressed_cutoff samples. -1: use smallest group size. Does NOT affect exported data"
+    value: -1
+    input: numeric
+  qc_stats_table_cols:
+    label: "Additional columns from sample annotation for qc stats table (only added if present, coloring of outliers only if numeric)"
+    value: [RIN, DV200]
+    input: text
+  pca_plot_x:
+    label: "Principal components to plot on x-axis (plots pca_plot_x[i] vs. pca_plot_y[i]; leave empty to disable PCA analysis)"
+    value: [1, 3]
+    input: text
+  pca_plot_y:
+    label: "Principal components to plot on y-axis (plots pca_plot_x[i] vs. pca_plot_y[i]; leave empty to disable PCA analysis)"
+    value: [2, 4]
+    input: text
+  var_cor_num_PCs:
+    label: "Variable correlation analysis: number of principal components to include (must be smaller than the number of samples)"
+    value: 15
+    input: numeric
+  var_cor_rsq_threshold_pct:
+    label: "Variable correlation analysis: rsq threshold (in %) for top variables to be included in plots"
+    value: 25
+    input: numeric
+  var_cor_tissue_specific_heatmaps_only:
+    label: "Variable correlation analysis: include only tissue-specific heatmaps (recommended). Set false to include also diagnostic plots (PCs vs. top variables, this may generate a lot of plots). This parameter only has an effect if tissue_specific_plots=true"
+    value: true
+    input: checkbox
+  genes_of_interest:
+    label: "List of symbols for genes of interest (expression plots included)"
+    value: [XIST, ACTB, RPS28, GAPDH]  # Some interesting genes (note, these are human genes and will not be shown for other species)
+    input: text
+  genes_of_interest_unit:
+    label: "Expression metric used to plot genes of interest (CPM, RPKM or TPM, always log2 transformed)"
+    value: "TPM"
+    choice: ["CPM", "RPKM", "TPM"]
+  export_with_qc_stats:
+    label: "Include QC metrics loaded from multiqc (Picard, STAR, fastqc) in the exported DGEList 'samples'. This adds many columns to the sample annotation, which may not be so convenient for printing etc. in the DGE report. But of course it's needed if those columns are used as covariates in the DGE analysis."
+    value: true
+    input: checkbox
+  gct_count_file:
+    label: "Relative path to the gct count file (leave empty to use <biokit_output_dir>/gct/<projectName>_count.gct; path is relative to biokit_output_dir)"
+    value: 
+    input: file
+  gene_annot_file:
+    label: "Relative path to the gene annotation file  (leave empty to use <biokit_output_dir>/annot/refseq.annot.gz)"
+    value: 
+    input: file
+  gene_length_file:
+    label: "Relative path to the gene length file  (leave empty to use <biokit_output_dir>/annot/refseq.geneLength.gz)"
+    value: 
+    input: file
+  biokit_log_file:
+    label: "Relative path to the biokit log file (leave empty to use <biokit_output_dir>/log/workflow_multi.log). The path must be relative starting from the biokit_output_dir."
+    value:
+    input: file
+  picard_stats_file:
+    label: "Relative path to the MultiQC Picard stats file (leave empty to use <biokit_output_dir>/multiqc_data/multiqc_picard_RnaSeqMetrics.txt)"
+    value: 
+    input: file
+  star_stats_file:
+    label: "Relative path to the MultiQC star stats file (leave empty to use <biokit_output_dir>/multiqc_data/multiqc_star.txt)"
+    value: 
+    input: file
+  fastqc_stats_file:
+    label: "Relative path to the MultiQC fastqc stats file (leave empty to use <biokit_output_dir>/multiqc_data/multiqc_fastqc.txt)"
+    value: 
+    input: file
+  organism:
+    label: "Only used if there is no biokit log file: the organism name (human, mouse, rat, cyno, pig, rabbit or full names such as homo sapiens) or taxonomy ID"
+    value: 
+    input: checkbox
+  study_description:
+    label: "Only used if there is no biokit log file: provide short description of data"
+    value: 
+    input: text
+  output_file_prefix:
+    label: "Only used if there is no biokit log file: provide a prefix for output files"
+    value: 
+    input: text
+  error_for_missing_samples:
+    label: "Set true to stop with error if samples in the sample_annot_file are missing in the gct file (default). Set false to remove the missing samples from the sampleAnnot and print a warning (this option is commonly used for pseudo-bulk analyses, where cell types may be missing in some samples)"
+    value: true
+    input: checkbox
+  error_for_missing_genes:
+    label: "Set true to stop with error if genes in the gct file are missing in the gene annotation files (default). Set false to remove the missing genes from the gct file and print a warning (this option may be used if the correct annotation files are not available)"
+    value: true
+    input: checkbox
+  output_dir:
+    label: "Output directory where exported files are written"
+    value: "gene_expression_data"
+    input: file
+title: "`r params$title`"
+author: '`r params$author`'
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    self_contained: true
+    code_folding: hide
+    mathjax: default
+    number_sections: true
+    theme: spacelab
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+editor_options:
+  chunk_output_type: console
+---
+
+```{r initialize, message = FALSE}
+# -----------------------------------------------------------------------------
+# Developer
+
+# The name and version of this report template (printed in last section)
+templateName <- "QC"
+templateVersion <- "1.4.1"
+# Set TRUE to enable rmarkdown cache
+knitr::opts_chunk$set(cache = FALSE, cache.lazy = FALSE)
+# Set FALSE to skip all output (plots, tables), useful for debugging 
+showOutput <- TRUE
+
+# -----------------------------------------------------------------------------
+
+# Knitr options (important to set error=FALSE, otherwise the evaluation does not stop after an error!)
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, message = TRUE, warning = TRUE, error = FALSE)
+
+# Libraries
+library(biokitr)
+```
+
+```{r setup}
+# Check that required parameters were set by user
+if (zebra::has_value(params$biokit_output_dir)) {
+	requiredPaths <- "biokit_output_dir"
+} else {
+	requiredPaths <- c("sample_annot_file", "gct_count_file", "gene_annot_file", "gene_length_file")
+}
+checkPathsExist(params, requiredPaths)
+requiredParams <- c("color_vars")
+checkParamsNotEmpty(params, requiredParams)
+
+# -----------------------------------------------------------------------------
+# Read sample annotation
+
+# Read sample annotation (from specified file or biokit phenoData)
+phenoDataFile <- params$sample_annot_file
+if (!zebra::has_value(params$sample_annot_file)) {
+  phenoDataFile <- file.path(params$biokit_output_dir, "annot/phenoData.meta")
+}
+sampleAnnot <- readSampleAnnot(file = phenoDataFile, report = "QC")
+# I use data.table (sorry dplyr friends...)
+sampleAnnot <- data.table(sampleAnnot)
+
+# -----------------------------------------------------------------------------
+# Colors
+
+# Define custom colors (color_vars for which no entry is added use default ggplot colors)
+colors <- list()
+# The variables used for colors
+colorVars <- params$color_vars
+
+# Check that they are valid column names
+notFound <- colorVars[!(colorVars %in% names(sampleAnnot))]
+endifnot(length(notFound) == 0, 
+                       msg = paste("Columns specified in color_vars not found in sample annotation:",
+                                   paste(notFound, collapse = ", ")))
+                       
+# If GROUP is not included, the first var becomes GROUP
+if (!("GROUP" %in% colorVars)) {
+  sampleAnnot[, GROUP := get(colorVars[1])]
+  colorVars[1] <- "GROUP"
+}
+# Make sure it is a factor
+if (!is.factor(sampleAnnot$GROUP)) {
+  sampleAnnot[, GROUP := as.factor(GROUP)]
+}
+
+# GROUP color
+groupColors <- getDistinctColors(length(unique(sampleAnnot$GROUP)))
+names(groupColors) <- levels(sampleAnnot$GROUP)
+colors[["GROUP"]] <- groupColors
+if (!("GROUP" %in% colorVars)) {
+  colors[[colorVars[1]]] <- groupColors
+}
+
+# QC warning and fail
+qcColors <- c("grey", "orange", "red")
+names(qcColors) <- c("", "WARNING", "FAIL")
+colors[["QC"]] <- qcColors
+```
+
+
+```{r load_meta_data}
+# -----------------------------------------------------------------------------
+# Read biokit log file
+
+# Flag indicating whether we are loading biokit output or other files
+isBiokitOutput <- zebra::has_value(params$biokit_output_dir)
+
+if (isBiokitOutput) {
+	# Read biokit log
+	logs <- readBiokitLogs(params$biokit_output_dir, params$biokit_log_file)
+} else {
+	# Construct required log params here
+	checkParamsNotEmpty(params, c("study_description", "output_file_prefix", "organism"))
+	logs <- list(studyDesc = params$study_description,
+							 biokitOutputFilePrefix = params$output_file_prefix,
+							 organism = params$organism)
+}
+
+# Check whether loaded data has human gene symbols
+humanGenes <- taxonomyID(logs$organism, name = TRUE) == "human"
+
+# -----------------------------------------------------------------------------
+# Load QC stats, exclude failed samples
+
+# Load qc stats 
+qcStats <- NULL
+qcStats <- loadQcStats(biokitDir = params$biokit_output_dir, sampleAnnot = sampleAnnot, 
+											 includePicardStats = TRUE, includeStarQc = TRUE, includePercentDuplicates = TRUE,
+											 picardStatsFile = params$picard_stats_file, starStatsFile = params$star_stats_file,
+											 fastqcStatsFile = params$fastqc_stats_file)
+
+# Add QC columns to sampleAnnot (does not remove any samples yet)
+sampleAnnot <- addQcFlags(sampleAnnot, qcFail.ids = params$qc_fail_ids, qcFail.desc = params$qc_fail_desc,
+                          qcWarning.ids = params$qc_warning_ids, qcWarning.desc = params$qc_warning_desc,
+													append = FALSE)
+
+# Add QC stats columns to sampleAnnot
+if (isBiokitOutput) {
+	sampleAnnot <- addQcStats(sampleAnnot, qcStats)
+}
+# Set auto QC flags based on user-specified columns and cutoffs
+sampleAnnot <- addAutoQcFlags(sampleAnnot, autoQcFlags = params$auto_qc_flags, afterLoadingExpr = FALSE)
+
+# Exclude failed samples
+sampleAnnot.all <- sampleAnnot
+if (!params$include_failed_samples) {
+  sampleAnnot <- sampleAnnot.all[QC_FAIL != TRUE]
+}
+```
+
+
+```{r load_expression_data}
+# -----------------------------------------------------------------------------
+# Load counts and geneAnnot. Excluded samples are removed!
+
+# Load original species data
+if (zebra::has_value(params$gct_count_file)) {
+	count <- readBiokitCountsFile(filename = params$gct_count_file,
+																sampleAnnot = sampleAnnot,
+																errorForMissingSamples = params$error_for_missing_samples)
+} else {
+	count <- readBiokitCounts(biokitOutputDir = params$biokit_output_dir, sampleAnnot = sampleAnnot,
+												 errorForMissingSamples = params$error_for_missing_samples,
+												 useRefseq = params$use_refseq_biokit_output)
+}
+geneAnnot <- readGeneAnnot(biokitOutputDir = params$biokit_output_dir, 
+													 geneAnnotFile = params$gene_annot_file,
+													 geneLengthFile = params$gene_length_file,
+													 useRefseq = params$use_refseq_biokit_output,
+													 errorForMissingGenes = params$error_for_missing_genes)
+
+# Remove samples from sampleAnnot that were missing in the gct file
+# (warning message is already printed when loading the gct file,
+# createDGEList() below again checks that mapping is one-to-one)
+if (!params$error_for_missing_samples) {
+  gctSamples <- colnames(count)[-c(1, 2)]
+  # Remove the missing samples from sampleAnnot
+  missingSamples <- sampleAnnot[!(SampleName %in% gctSamples), SampleName]
+  sampleAnnot <- sampleAnnot[!(SampleName %in% missingSamples)]
+  # Here it is important to refer specifically to missingSamples (not
+  # gctSamples), otherwise QC fails would also be removed
+  sampleAnnot.all <- sampleAnnot.all[!(SampleName %in% missingSamples)]  
+}
+
+# DGEList including all genes
+dge.allGenes <- createDGEList(count, sampleAnnot, geneAnnot, 
+															errorForMissingGenes = params$error_for_missing_genes)
+# Add human ortholog annotation to dge$genes
+if (!humanGenes) {
+  dge.allGenes <- addHumanOrthologAnnot(dge = dge.allGenes, organism = logs$organism)
+}
+# Remove sampleAnnot and geneAnnot - it's dangerous, instead use dge$samples, dge$genes
+rm(list = c("count", "sampleAnnot", "geneAnnot"))
+
+# DGEList after removing lowly expressed genes
+dge <- removeLowExpressedGenes(dge.allGenes, numSamplesExpressedCutoff = params$num_samples_expressed_cutoff,
+                               cpmCutoff = params$cpm_cutoff, groupColumn = "GROUP", countCutoff=params$count_cutoff)
+
+# ------------------------------------------------------------------------------
+# Add two QC metrics derived from the loaded expression data: N_genes and Tot_counts
+# (the number of expressed genes and the total counts in million)
+
+# Add number of expressed genes (CPM>cpm_cutoff AND count>count_cutoff) as QC metric
+cpms <- getCpm(dge, log = FALSE)
+cpms[dge$counts < params$count_cutoff] <- 0 # Do not count genes with less than N reads
+N <- colSums(cpms > params$cpm_cutoff)
+dge$samples$N_genes <- N
+dt <- data.table(dge$samples[, c("SampleName", "N_genes")])
+# Add to columns shown in qc metrics table
+showSampleAnnotCols <- c("N_genes")
+
+# Add total read count of expressed genes as QC metric (after excluding lowly expressed genes)
+#if (!zebra::has_value(qcStats)) {
+	counts <- dge$counts
+	N <- round(colSums(counts))
+	dge$samples$Tot_counts <- N
+	dt[, Tot_counts := N]
+	# Add to columns shown in qc metrics table
+	showSampleAnnotCols <- c(showSampleAnnotCols, "Tot_counts")
+#}
+# Add to sampleAnnot.all to show in qc stats table
+sampleAnnot.all <- merge(sampleAnnot.all, dt, by = "SampleName", all.x = TRUE)
+
+# Set auto QC flags for N_genes and Tot_counts (if conditions were defined for them in auto_qc_flags)
+sampleAnnot.all <- addAutoQcFlags(sampleAnnot.all, autoQcFlags = params$auto_qc_flags, afterLoadingExpr = TRUE)
+dt <- addAutoQcFlags(data.table(dge$samples), autoQcFlags = params$auto_qc_flags, afterLoadingExpr = TRUE)
+dge$samples <- data.frame(dt)
+# Exclude failed samples
+if (!params$include_failed_samples) {
+  index <- dge$samples$QC_FAIL != TRUE
+  dge <- dge[, index]
+}
+
+# Add QC column to color_vars
+if (!all(dge$samples$QC == "")) {
+  colorVars <- c(params$color_vars, "QC")
+}
+
+# ------------------------------------------------------------------------------
+# Define tissues with enough sample for tissue-specific analysis
+
+# Get tissues from sample annot
+tissueColumn <- params$tissue_column
+if (!zebra::has_value(tissueColumn)) { 
+  tissueColumn <- grep("tissue", colnames(dge$samples), ignore.case = TRUE, value = TRUE)[1]
+}
+tissues <- vector()
+numSamplesPerTissue <- data.table()
+if (zebra::has_value(tissueColumn)) {
+  endifnot(tissueColumn %in% colnames(dge$samples), msg = paste0("tissue_column = ", tissueColumn, " not found in sample annot"))
+  # Number of samples per tissue
+  numSamplesPerTissue <- data.table(dge$samples)[, .N, by=tissueColumn]
+  setorder(numSamplesPerTissue, -N)
+  numSamplesPerTissue[, Tissue_specific_analysis := FALSE]
+  # Tissues with required number of samples for tissue-specific analysis (only if there is more than one tissue)
+  if (params$tissue_specific_plots && nrow(numSamplesPerTissue) > 1) {
+    tissues <- numSamplesPerTissue[N >= params$tissue_min_num_samples, get(tissueColumn)]
+    numSamplesPerTissue[get(tissueColumn) %in% tissues, Tissue_specific_analysis := TRUE]
+  }
+}
+# Perform tissue-specific analyses
+includeTissueSpecificPlots <- sum(numSamplesPerTissue$Tissue_specific_analysis) > 0
+```
+
+
+# Overview
+
+## Task
+
+<!-- ------------------------------------------------------------ -->
+<!-- You may want to add a more detailed description of the study -->
+<!-- and the biological questions here                            -->
+<!-- ------------------------------------------------------------ -->
+
+This report is used to
+
+* **Identify QC failed samples** that will be excluded from downstream analysis
+* **Inform the design of statistical models** through explorative analysis of variables and covariates
+
+**Study description**
+
+* `r logs$studyDesc`
+
+## Design {.tabset}
+
+* Number of samples: ``r nrow(sampleAnnot.all)``
+* Number of groups: ``r length(unique(sampleAnnot.all$GROUP))``
+* Reference genome: ``r logs$organism``
+
+### Hide {-}
+
+### #Samples by group {-}
+
+```{r num_samples_by_group}
+# Number of samples by group
+dt <- sampleAnnot.all[, .N, by = "GROUP"]
+# Include number after excluding failed samples
+if (sum(sampleAnnot.all$QC_FAIL) > 0) {
+	dt2 <- sampleAnnot.all[QC_FAIL != TRUE]
+	dt2 <- dt2[, .N, by = "GROUP"]
+	setnames(dt, "N", "N (all samples)")
+	setnames(dt2, "N", "N (excluding failed samples)")
+	dt <- merge.data.table(dt, dt2, by = "GROUP", all.x = TRUE)
+}
+printTable(dt, showOutput)
+```
+
+### Sample annotation {-}
+
+Sample annotation: ``r phenoDataFile``
+
+```{r samples_table}
+# Print all samples
+printDT(sampleAnnot.all, showOutput)
+```
+
+
+## Biokit
+
+```{r print_biokit_logs, results="asis"}
+if (isBiokitOutput) {
+	cat(printBiokitLogs(params, logs))
+} else {
+	cat("> `biokit_output_dir` not set, no biokit logs loaded\n")
+}
+```
+
+
+
+# QC
+
+```{r print_qc_links, results="asis"}
+if (isBiokitOutput) {
+  str <- paste("* **[Link to MultiQC report](", logs$biokitOutputDir.url, "/multiqc_report.html", ")**\n",
+               "* **[Link to FastQC folder](", logs$biokitOutputDir.url, "/fastqc", ")**\n", sep = "")
+  cat(str)
+}
+```
+
+
+## Flagged samples {.tabset}
+
+```{r load_initialize, results = "asis"}
+numSamples <- nrow(sampleAnnot.all)
+numFailed <- sum(sampleAnnot.all$QC_FAIL)
+numWarn <- sum(sampleAnnot.all$QC_WARNING)
+
+if (params$include_failed_samples == FALSE) {
+  cat("> QC failed samples are excluded from exported data, downstream analyses (from Section 3 on)")
+} else {
+  cat("> **WARNING**: QC failed samples were NOT excluded from analyses and exported data (set `include_failed_samples=FALSE` to remove them)")
+}
+```
+
+* **`r numFailed` samples with QC fails**
+    + These samples were flagged manually (parameter `qc_fail_ids`)
+* **`r numWarn` samples with QC warnings**
+    + These samples were flagged manually (parameter `qc_warning_ids`) and/or triggered automatic QC warnings. They are highlighted in some plots for further inspection.
+
+```{r print_failed, results = "asis"}
+if (numFailed > 0) {
+  pander::pandoc.header("FAIL {-}", level = 3)
+  dt <- sampleAnnot.all[QC_FAIL == TRUE, list(ID, SampleName, GROUP, QC_FAIL, QC_FAIL_DESC, QC_WARNING, QC_WARNING_DESC)]
+  printTable(dt, showOutput)
+}
+if (numWarn > 0) {
+  pander::pandoc.header("WARNING {-}", level = 3)
+  dt <- sampleAnnot.all[QC_WARNING == TRUE, list(ID, SampleName, GROUP, QC_FAIL, QC_FAIL_DESC, QC_WARNING, QC_WARNING_DESC)]
+  printTable(dt, showOutput)
+}
+```
+
+
+## Summary of QC metrics
+
+* **Dark red background**
+    + Samples flagged as `QC fail`
+* **Light red background**
+    + Samples flagged as `QC warning`
+* **Font color**
+    + Bold font: outlier values (as defined in a boxplot)
+    + Green: values < 1st quartile
+    + Purple: values > 3rd quartile
+
+```{r qc_stats_table, results="asis"}
+if (showOutput) {
+	if (zebra::has_value(qcStats)) {
+    cat("> No QC statistics loaded, set `biokit_ouput_dir` or the `picard/star/multiqc` stats file parameters\n")
+	}
+	if (zebra::has_value(params$qc_stats_table_cols)) {
+		showSampleAnnotCols <- c(showSampleAnnotCols, params$qc_stats_table_cols)
+	}
+  # Print nice html table with all qc metrics and the additional columns selected by user 
+	printQcStatsTable(qcStats, sampleAnnot = sampleAnnot.all, showSampleAnnotCols = showSampleAnnotCols)
+}
+```
+
+
+## Mapped reads & duplicates {.tabset}
+
+```{r plot_read_counts, results="asis", fig.width=9, fig.height=1+0.15*numSamples}
+if (showOutput) {
+	plotMappedReadsStats(qcStats, sampleAnnot.all, headingLevel = "###") 
+ }
+```
+
+
+
+# Filtering and normalization
+
+* Samples that failed QC `r ifelse(params$include_failed_samples, "are **NOT** excluded", "are excluded from this point on")` (see previous section)
+
+* Library size and composition are adjusted for using TMM-normalized CPM values
+
+## Removing lowly expressed genes
+
+```{r load_biokit_gct, results="asis"} 
+# Print info on exclusion criteria
+str <- paste0("> **Expressed genes** are defined as having `CPM>", params$cpm_cutoff, "` AND `count>", params$count_cutoff, "` in at least ")
+if (params$num_samples_expressed_cutoff == -1) {
+  str <- paste0(str, "`K=", min(table(dge$samples$GROUP)), "` samples, where K is the size of the smallest group\n")
+} else {
+  str <- paste0(str, "`", params$num_samples_expressed_cutoff, " samples`\n")
+}
+str <- paste0(str, ">\n> Genes that are not expressed by this definition are removed for subsequent analyses (they are included in the exported data)\n")
+cat(str)
+
+# Print number of expressed / not expressed genes
+numTot <- nrow(dge.allGenes)
+numExpressed <- nrow(dge)
+numNotExpressed <- numTot - numExpressed
+dt <- data.table(Category = c("All genes", "Expressed genes (retained)", "Not expressed genes (removed)"),
+                 N = c(numTot, numExpressed, numNotExpressed),
+                 Percent = c(1, numExpressed/numTot, numNotExpressed/numTot))
+dt[, Percent := round(1000*Percent)/10]
+printTable(dt)
+```
+
+## Distribution of gene expression values {.tabset}
+
+* Density of gene expression values for each sample
+* The two tabs show the density after/before removing lowly expressed genes (see previous section)
+
+```{r plot_cpm_density, fig.width=9, fig.height=4, results="asis"}
+if (showOutput) {
+  pander::pandoc.header("Color by group {.tabset -}", level = 3)
+  # Plot CPM density for filtered genes and all genes in two tabs
+  plotCpmDensityTabs(dge.expressedGenes = dge, dge.allGenes = dge.allGenes, headingLevel = "####", 
+                     highlightQcWarnings = FALSE, colorVar = "GROUP", colors = colors) 
+  
+  # Highlight samples with QC fail or warnings
+  if (!all(dge$samples$QC == "")) {
+    pander::pandoc.p("")
+    pander::pandoc.header("QC flagged samples {.tabset -}", level = 3)
+    plotCpmDensityTabs(dge.expressedGenes = dge, dge.allGenes = dge.allGenes, headingLevel = "####", 
+                       highlightQcWarnings = TRUE, colorVar = "SampleName", colors = colors) 
+  } 
+} 
+```
+
+
+```{r total_counts, fig.width=9, fig.height=1+0.14*numSamples, results="asis"}
+# Plot total number of reads only if qcStats is not available (otherwise redundant with plots above)
+if (showOutput && !zebra::has_value(qcStats)) {
+	cat("## Total number of counts {.tabset}\n\n")
+	cat("* Total number counts (in 10,000s) for each sample (observed library size)\n")
+	cat("    - The division by 10,000 is done because for **pseudo-bulk single-cell data** that is exported as cp10k-normalized values, the result corresponds to the number of cells (approximately, because lowely expressed genes have been removed\n")
+	cat("* These are the counts after removing lowely expressed genes\n\n")
+
+	# Print total counts as bar plot and table in tabs
+	plotTotalCounts(dge, groupColors = colors[["GROUP"]])
+}
+```
+
+## Number of expressed genes {.tabset}
+
+* Number of expressed genes at different CPM cutoffs (CPM > 1, 10, 100)
+* Only genes with at least `r params$count_cutoff` reads in the respective sample are counted
+
+```{r num_expressed_genes, fig.width=9, fig.height=1+0.14*numSamples, results="asis"}
+if (showOutput) { 
+	# Stacked bar plot and table showing number of expressed genes at CPM cutoffs
+	plotNumExpressedGenes(dge, params$count_cutoff)
+}
+```
+
+## Sequencing depth {.tabset}
+
+* Diagnostic plots that may help to evaluate whether sequencing depth was appropriate
+* The aim is to avoid under- or over-sequencing similar experiments in the future
+
+### #Genes vs. total number of reads {-}
+
+* Each point is a sample
+* `X-axis`: Total number of reads including mapped and unmapped reads (sequencing depth)
+* `Y-axis`: Number of genes detected with at least 10 reads in the given sample
+* The universe of genes considered here are the expressed genes (see filtering criteria in Sect. 3.1)
+* This plot may only be informative for experiments with many samples that have varying number of total reads
+* If the number of expressed genes per sample plateaus as the total number of reads increases, the library complexity was exhausted
+
+```{r expressed_genes_vs_total_reads, results="asis", fig.width=6, fig.height=4.5}
+if (showOutput) {
+	# Set smooth=TRUE to add geom_smooth()
+	showSmooth <- nrow(sampleAnnot.all) > 20
+	plotExpressedGenesVsTotalReads(dge, qcStats, colorVar = "GROUP", myColors = colors, cutoffs = 10, smooth = showSmooth) 
+}
+```
+
+### #Distinct vs. total number of reads {-}
+
+* Each point is a sample
+* `X-axis`: Total number of reads including mapped and unmapped reads (sequencing depth)
+* `Y-axis`: `Number_of_distinct_reads = (1 - Fraction_duplicate_reads) * Total_number_of_reads`
+    - `Fraction_duplicate_reads` is the average of the duplicate rate for read 1 and 2 for paired-end sequencing (cf. Section 2.3)
+* This plot may only be informative for experiments with many samples that have varying number of total reads
+* If the number of distinct reads plateaus as the total number of reads increases, the library complexity was exhausted
+
+```{r distinct_vs_total_reads, results="asis", fig.width=6, fig.height=4.5}
+if (showOutput) {
+	# Set smooth=TRUE to add geom_smooth()
+	showSmooth <- nrow(sampleAnnot.all) > 20
+	plotDistinctReadsVsTotalReads(qcStats, sampleAnnot.all, colorVar = "GROUP", colors = colors, smooth = showSmooth) 
+}
+```
+
+### #Genes when subsampling reads {-}
+
+* Expected number of expressed genes at varying sequencing depths for each sample (i.e., sub-sampling reads)
+* `X-axis`
+    - For `X = 5, 10, ...` million sequenced reads, only samples with `>X` million reads are included
+    - We imagine sub-sampling `X` million reads from each of these samples
+    - The values shown correspond to the total sequencing depth including mapped and unmapped reads
+* `Y-axis`
+    - Expected number of genes with greater or equal `N` reads for each sample (when sub-sampling `X` million reads)
+* `Boxplots`
+    - Each point is a sample, boxplots summarize the corresponding distributions
+    - Note the greater `X`, the fewer samples with `>X` million reads are available for the analysis
+* The universe of genes considered here are the expressed genes (see filtering criteria in Sect. 3.1)
+* Optimal sequencing depth `X` is at the elbow where number of detected genes plateaus
+    - If number of detected genes still keeps increasing at max sequencing depth, samples were under-sequenced
+
+```{r expressed_genes_sequencing_depth, fig.width=7, fig.height=4.5}
+if (showOutput) {
+	print(plotSequencingDepthVsExpressedGenes(dge, qcStats, cutoffs = 10, colorVar = "GROUP", myColors = colors)) 
+}
+```
+
+
+# Exploratory analysis
+
+## Tissue-specific analyses {.tabset}
+
+Overview of tissues included in the tissue-specific PCA analysis (plots are in the respective sections):
+
+```{r num_samples_by_tissue, results="asis"}
+if (params$tissue_specific_plots) {
+  # Print number of samples per tissue
+  if (nrow(numSamplesPerTissue) > 0) {
+    pander::pandoc.header("#Samples per tissue {-}", level = 3)
+    print(printTable(numSamplesPerTissue))
+  }
+  
+  # Print the relevant params
+  pander::p("")
+  pander::pandoc.header("Parameters {-}", level = 3)
+  tissueParamNames <- c("tissue_specific_plots", "tissue_min_num_samples")
+  tissueParams <- params[tissueParamNames]
+  tissueParams[["tissue_column"]] <- tissueColumn
+  printParams(tissueParams)
+
+} else {
+  cat("> Tissue-specific plots disabled (`tissue_specific_plots = false`)\n\n")
+}
+```
+
+
+## BioQC
+
+BioQC is a method to detect tissue heterogeneity in gene expression data ([Zhang et al., BMC Genomics, 2017](https://doi.org/10.1186/s12864-017-3661-2)). Enrichment for unexpected tissues can be a consequence of **mislabeled samples**, **technical reasons** (e.g. imperfect dissection) or **biological reasons** (e.g. immune infiltration).
+
+* `r length(biokitr::geneSets$bioqc)` tissue-specific gene signatures derived from public and in-house data are considered
+* Signatures are tested for enrichment in highly expressed genes for each sample using the Wilcoxon-Mann-Whitney test
+* Enrichment scores `Q` are defined based on the `-log10(p-value)`
+* Signatures with `Q > 2` in at least one sample are shown in the heatmap (the top 40 if there are more)
+
+```{r bioqc, results="asis"}
+# This is 0 if the column is not present
+numOrtholog <- sum(!is.na(dge$genes$HumanGeneSymbol))
+if (!humanGenes) {
+  if (numOrtholog > 0) {
+    cat(">", sum(!is.na(dge$genes$HumanGeneSymbol)), "genes could be mapped to human orthologs and are used for this analysis\n\n")
+  } else {
+    cat("> Orthologs could not be dynamically mapped for this species\n\n")
+  }
+}
+
+# Compute bioQC scores using default signatures
+if (humanGenes | numOrtholog > 0) {
+  # For non-human data, the HumanGeneSymbol column will be used (see addHumanOrthologAnnot() above)
+  Q <- runBioQC(dge, pvalCutoff = 0.01, returnTopN = 40) 
+} else {
+  Q <- data.frame() # To avoid error when setting fig size in chunk below
+}
+```
+
+```{r bioqc_plot, fig.width=5.4+0.16*nrow(Q), fig.height=5+0.13*ncol(Q)}
+# Separate chunk so we can set fig size based on Q 
+if (showOutput & zebra::has_value(Q) & nrow(Q) > 0) {
+  # Plot as heatmap
+  plotBioQC(Q, sampleAnnot = dge$samples, annotCols = colorVars, colors = colors, truncSigNames = 50) 
+}
+```
+ 
+
+## Hierarchical clustering
+
+Samples are clustered hierarchically based on the similarity of their gene expression profiles. The aim is to detect possible outlier samples and explore the main effects that define the grouping of samples (e.g., treated vs. untreated). This analysis is complementary to the PCA (next section) and often similar observations can be made.
+
+* Dissimilarity metric of counts based on a Poisson log linear model is employed ([Witten, Ann. Appl. Stat., 2011](https://projecteuclid.org/euclid.aoas/1324399604))
+* Hierarchical clustering is performed using Ward's method
+
+```{r poisson_dist_hcl, fig.width=9, fig.height=2+0.14*ncol(dge)}
+if (showOutput) {
+  # Poisson distance (TMM, counts)
+  poisd <- PoiClaClu::PoissonDistance(t(dge$counts))
+  # Plot as heatmap 
+  plotPoissonDistHcl(poisd = poisd, dge = dge, annotCols = colorVars, colors = colors) 
+}  
+```
+
+
+## Principal component analysis (PCA)
+
+Here we perform dimensionality reduction of the gene expression profiles using PCA:
+
+* If there are multiple tissues, PCA is first performed for all samples and then for each tissue separately (or any grouping variable specified in `tissue_column`)
+* The percent variance explained indicates the importance of each Principal Component (PC)
+    - See Section "Correlation analysis of variables" to explore which variables the PCs may correspond to
+* By default, `PC1 vs. PC2` and `PC3 vs. PC4` are plotted 
+    - The PCs plotted can be specified using the parameter `dimensions` in the code
+* The PCA is computed based on the top 500 most variable genes using TMM-normalized logCPM
+
+```{r pca_percent_var, fig.height=2.5, fig.width=3.5, results="asis"}
+endifnot(length(params$pca_plot_x) == length(params$pca_plot_y),
+                       msg = "pca_plot_x and pca_plot_y must be numeric vectors of equal length")
+
+# Skip PCA?
+includePCA <- TRUE
+minNumSamplesPCA <- 3
+if (length(params$pca_plot_x) == 0) {
+  includePCA <- FALSE
+  cat("> PCA skipped because `pca_plot_x` and `pca_plot_y` were not set\n\n")
+} else if (ncol(dge) < minNumSamplesPCA) {
+ includePCA <- FALSE
+ cat("> PCA skipped because there are <", minNumSamplesPCA, " samples\n\n", sep = "")
+}
+
+if (includePCA & showOutput) {
+  pander::pandoc.header("Percent variance explained {.tabset -}", level = 3)
+
+  if (includeTissueSpecificPlots) {
+    pander::pandoc.header("All samples {-}", level = 4)
+  }
+  # Plot percent variance explained by top 10 PCs
+  pca <- pcaTopn(dge, topn=500)
+  print(plotPercentVar(pca$percentVar, numPCs = 10))
+  
+  # Plots for each tissue
+  if (includeTissueSpecificPlots) {
+    for (t in tissues) {
+      pander::pandoc.p("")
+      pander::pandoc.header(paste(t, "{-}"), level = 4)
+      # Samples from the given tissue
+      dge.t <- dge[, dge$samples[[tissueColumn]] == t]
+      # Plot percent variance explained by top 10 PCs
+      pca <- pcaTopn(dge.t, topn=500)
+      print(plotPercentVar(pca$percentVar, numPCs = 10))
+   }
+  }
+} 
+```
+
+```{r pca_plots, fig.width=11, fig.height=9, results="asis"}
+if (includePCA & showOutput) {
+  pander::pandoc.header("PCA {.tabset -}", level = 3)
+  endifnot(ncol(dge) > 2, msg = "PCA analysis with less than 3 samples makes no sense")
+  
+  # PCs to plot
+  dimensions <- data.table(x = params$pca_plot_x, y = params$pca_plot_y)
+  # Keep only pairs with valid PCs (there are at most N-1 PCs, where N is the number of samples)
+  dimensions <- dimensions[x < ncol(dge) & y < ncol(dge)]
+  dimensions[, x := paste0("PC", x)]
+  dimensions[, y := paste0("PC", y)]
+  
+  if (includeTissueSpecificPlots) {
+    pander::pandoc.header("All samples {.tabset -}", level = 4)
+  }
+  # Plot specified PCs
+  pca <- pcaTopn(dge, topn=500)
+  headingLevel <- if_else(includeTissueSpecificPlots, 5, 4)
+  plotPcaTabs(pca = pca, dge = dge, dimensions = dimensions, colorVars = colorVars, colors = colors,
+              headingLevel = headingLevel, labelVar = "SampleName", shape = NULL) 
+  
+  # Plots for each tissue
+  if (includeTissueSpecificPlots) {
+    for (t in tissues) {
+      pander::pandoc.p("")
+      pander::pandoc.header(paste(t, "{.tabset -}"), level = 4)
+      # Samples from the given tissue
+      dge.t <- dge[, dge$samples[[tissueColumn]] == t]
+      # Plot specified PCs
+      pca <- pcaTopn(dge.t, topn=500)
+      plotPcaTabs(pca = pca, dge = dge.t, dimensions, colorVars = colorVars, colors,
+                  headingLevel = 5, labelVar = "SampleName", shape = NULL) 
+    } 
+  }
+} 
+```
+
+
+## Correlation analysis of variables
+$R^2$ for each single explanatory variable is shown against each dependent Principal Components variable separately. 
+ 
+```{r var_cor_rsq, results="asis"}
+if (includePCA) {
+  pander::pandoc.header("Top variables correlated with PCs {.tabset -}", level = 3)
+  
+  # Step1: Identifies the features correlated to the top numPCs principal components
+  # Number of principal components to include
+  numPCs <- params$var_cor_num_PCs
+  if (numPCs >= ncol(dge)) {
+    numPCs <- ncol(dge) - 1
+  }
+  # Usually no need to change
+  topngenes <- 500
+  # Produces the pca and calculates the ssr with the phenotype variables in the dge object.
+  cf <- cf.analysis(object = dge, pcs.use = numPCs, rsq.threshold.pct = params$var_cor_rsq_threshold_pct, topn = topngenes)
+  # Used to set fig sizes in chunks below
+  numTopVariables <- nrow(cf$top.explanatory.variables)
+  nrowRsqMat <- nrow(cf$rsq.mat)
+
+} else {
+  cat("> Correlation analysis skipped because there are <", minNumSamplesPCA, " samples", sep = "")
+  # Used to set fig sizes in chunks below, initialize to avoid error when includePCA=FALSE
+  numTopVariables <- 0
+  nrowRsqMat <- 0
+}
+```
+
+```{r var_cor_rsq_plot, fig.height=2+0.26*nrowRsqMat, fig.width=9, results="asis"}
+# Separate chunk so fig size can be set using rsq.mat
+if (showOutput & includePCA) { 
+  if (includeTissueSpecificPlots) {
+    pander::pandoc.header("All samples {.tabset -}", level = 4)
+  }
+  # Plot all features vs the top "pcs.use" principal components 
+  NMF::aheatmap(as.matrix(cf$rsq.mat[, 1:numPCs]*100), fontsize = 8.5, 
+                txt = round(as.matrix(cf$rsq.mat[, 1:numPCs]*100), digits = 1), color=c("white","red"), 
+                main = "R-squared values * 100 (%) of variables concerning relevant PCs")
+  
+  # Plots for each tissue
+  if (includeTissueSpecificPlots) {
+    # Store results from cf.analysis for each tissue
+    cfTissues <- list()
+    for (t in tissues) {
+      pander::pandoc.p("")
+      pander::pandoc.header(paste(t, "{.tabset -}"), level = 4)
+      # Samples from the given tissue
+      dge.t <- dge[, dge$samples[[tissueColumn]] == t]
+      # Number of PCs to use
+      numPCs.t <- numPCs
+      if (numPCs >= ncol(dge.t)) {
+        numPCs.t <- ncol(dge.t) - 1
+      }
+      # Produces the pca and calculates the ssr with the phenotype variables in the dge object.
+      cf.t <- cf.analysis(object = dge.t, pcs.use = numPCs.t, rsq.threshold.pct = params$var_cor_rsq_threshold_pct, topn = topngenes)
+      cfTissues[[t]] <- cf.t
+      # Plot all features vs the top "pcs.use" principal components 
+      NMF::aheatmap(as.matrix(cf.t$rsq.mat[, 1:numPCs.t]*100), fontsize = 8.5, 
+                    txt = round(as.matrix(cf.t$rsq.mat[, 1:numPCs.t]*100), digits = 1), color=c("white","red"), 
+                    main = "R-squared values * 100 (%) of variables concerning relevant PCs")
+    }
+  }
+}  
+```
+
+### Plot PCs vs. top explanatory variables {.tabset -}
+
+```{r pcs_vs_vars, fig.width=7, fig.height=7, results="asis"}
+if (showOutput & includePCA) {
+  if (includeTissueSpecificPlots) {
+    pander::pandoc.header("All samples {.tabset -}", level = 4)
+  }
+  # Plots for all samples
+  plotPcsVsVariablesTabs(cf, headingLevel = if_else(includeTissueSpecificPlots, 5, 4))
+   
+  if (includeTissueSpecificPlots) {
+    # Plots for each tissue
+    for (t in tissues) {
+      pander::pandoc.p("")
+      pander::pandoc.header(paste(t, "{.tabset -}"), level = 4)
+      if (params$var_cor_tissue_specific_heatmaps_only) {
+        pander::pandoc.p("To generate tissue-specific plots set `var_cor_tissue_specific_heatmaps_only = false`")
+      } else {
+        plotPcsVsVariablesTabs(cfTissues[[t]], headingLevel = 5)
+      } 
+    }
+  }
+}
+```
+  
+### Correlation between explanatory variables {.tabset -}
+
+Correlation of CFs through R-squared:
+
+*  Note: The McFadden's Pseudo-$R^2 = \frac{l_{model}}{l_{null}} $ where $l$ represents the log-likelihood, is used for dependent categorical variables to provide comparable metric. 
+
+
+```{r var_cor, results=FALSE}
+if (showOutput & includePCA) {
+  # Separate chunk because results=FALSE is needed to avoid messages from model fitting
+  # Step3 correlation analysis of the known covariates using mcfadden on the discrete variables
+  cf.rsq.mat <- cf.corr.analysis(object = cf$dgelist, cfs.characters = rownames(cf$top.explanatory.variables))
+  
+  # Correlation analysis for each tissue
+  if (includeTissueSpecificPlots) {
+    cfRsqMatTissues <- list()
+    for (t in tissues) {
+      cf.t <- cfTissues[[t]]
+      cf.rsq.mat.t <- cf.corr.analysis(object = cf.t$dgelist, cfs.characters = rownames(cf.t$top.explanatory.variables))
+      cfRsqMatTissues[[t]] <- cf.rsq.mat.t
+    }
+  }
+}
+```
+
+```{r var_cor_plot, fig.width=2.7+0.36*numTopVariables, fig.height=1.7+0.36*numTopVariables, results="asis"}
+if (showOutput & includePCA) {
+  if (includeTissueSpecificPlots) {
+    pander::pandoc.header("All samples {.tabset -}", level = 4)
+  }
+  # Plot correlation matrix as heatmap
+  print(plotVarCor(cf.rsq.mat))
+   
+  if (includeTissueSpecificPlots) {
+    for (t in tissues) {
+      pander::pandoc.p("")
+      pander::pandoc.header(paste(t, "{.tabset -}"), level = 4)
+      print(plotVarCor(cfRsqMatTissues[[t]]))
+    }
+  }
+}
+```
+
+
+# Genes of interest
+
+```{r tg_expression, results="asis"}
+showGenesOfInterest <- zebra::has_value(params$genes_of_interest)
+# The default genes of interest included in the template are human, don't show for other organisms
+if (!humanGenes & all(params$genes_of_interest == c("XIST", "ACTB", "RPS28", "GAPDH"))) {
+  showGenesOfInterest <- FALSE
+}
+
+if (showGenesOfInterest) {
+  # Get target gene expression
+  goiExpr <- getGenesOfInterestExpr(dge = dge.allGenes, genes = params$genes_of_interest, 
+                                    unit = params$genes_of_interest_unit) 
+  value.name <- paste0("log2_", params$genes_of_interest_unit)
+  # Get target genes status (not found, not expressed, expressed)
+  goiStatus <- getGenesOfInterestStatus(dge.allGenes, dge, params$genes_of_interest)
+  pander::pandoc.p("The following genes have been selected for visualization:")
+  printTable(goiStatus, showOutput)
+} else {
+  pander::pandoc.p("No genes selected for visualization (set `genes_of_interest` parameter to plot expression levels here)")
+} 
+```
+
+```{r tg_expression_plot, results = "asis", fig.height=0.9+0.15*ncol(dge), fig.width=7}
+if (showGenesOfInterest & showOutput) {  
+  pander::pandoc.p("") 
+  pander::pandoc.header("Expression for each sample {.tabset}", level = 2)
+  # groupVar is used for colour
+  plotGoiExpr(goiExpr, value.name = value.name, headingLevel = "###", boxplot = FALSE, groupVar = "GROUP") 
+} 
+```
+
+```{r tg_expression_boxplot, results = "asis", fig.height=1+0.21*length(unique(dge$samples$GROUP)), fig.width=6}
+if (showGenesOfInterest & showOutput) {  
+  pander::pandoc.p("")  
+  pander::pandoc.header("Expression summarized by group {.tabset}", level = 2)
+  # groupVar is used for grouping samples in boxplots
+  plotGoiExpr(goiExpr, value.name = value.name, headingLevel = "###", boxplot = TRUE, groupVar = "GROUP")
+} 
+```
+
+
+# Data export
+
+* Writing counts, sample and gene annotation as DGEList object and also as text files
+* All genes are included in the exported data (no filtering of lowly expressed genes)
+* `r if_else(params$include_failed_samples, "All samples are included (include_failed_samples=TRUE)",
+        paste(numFailed, "samples flagged as QC FAIL were excluded from the exported data"))`
+
+```{r export_dge, results="asis"}
+
+
+# Prepare for export
+dgeList <- dge.allGenes
+# edgeR and David ribios col name convention:
+# GROUP => group, ID => SampleID, SampleName present
+dgeList$samples <- dgeList$samples %>%
+  # Rename doesn't work because "group" may already exist
+  mutate(group = GROUP) %>%
+  mutate(GROUP = NULL) %>%
+  rename(SampleID = ID)
+endifnot("SampleName" %in% names(dgeList$samples), msg = "SampleName is mandatory column for export")
+
+if (!params$export_with_qc_stats) {
+  # Remove the stats columns loaded from multiqc (Picard, STAR and fastqc stats)
+  # For downstream analysis it's not practical to have sample annot with large number of columns
+  # (e.g. for printing). If the columns are needed in the model, set export_with_qc_stats = true
+  cn <- colnames(dgeList$samples)
+  keep <- !stringr::str_starts(cn, "Picard") & !stringr::str_starts(cn,"STAR") & cn != "Reads_Duplicate"
+  dgeList$samples <- dgeList$samples[, keep]
+}
+
+# Counts as gct
+expr <- as.data.table(dgeList$counts)
+expr[, Name := dgeList$genes$GeneID]
+expr[, Description := dgeList$genes$GeneSymbol]
+# Move the two cols to the front
+setcolorder(expr, c("Name", "Description"))
+
+# Write DGEList including counts, sample and gene annotation
+dgeFile <- file.path(outputDir, paste0(logs$biokitOutputFilePrefix, "_DGEList.rds"))
+# Counts as gct
+countsFile <- file.path(outputDir, paste0(logs$biokitOutputFilePrefix, "_counts.gct"))
+# Sample annot as tsv
+samplesFile <- file.path(outputDir, paste0(logs$biokitOutputFilePrefix, "_samples.txt"))
+# Gene annot as tsv
+genesFile <- file.path(outputDir, paste0(logs$biokitOutputFilePrefix, "_genes.txt"))
+
+```
+
+
+<!-- ---------------------------------------------------------------------- -->
+<!-- Prints the parameters and session information                          -->
+<!-- Include at end of each biokitr report                                  -->
+<!-- ---------------------------------------------------------------------- -->
+```{r session_info, results = "asis"}
+printReproducibilitySection(params, templateName, templateVersion)   
+```
+
+

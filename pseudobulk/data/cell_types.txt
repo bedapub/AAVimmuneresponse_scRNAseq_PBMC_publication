@@ -1,0 +1,11 @@
+CellType	GctFile
+all	Pseudobulk-celltype1_co-all.gct
+T_cell	Pseudobulk-celltype1_co-T_cell.gct
+CD4T_cell	Pseudobulk-celltype2_co-CD4-positive,_alpha-beta_T_cell.gct
+CD8T_cell	Pseudobulk-celltype2_co-CD8-positive,_alpha-beta_T_cell.gct
+lymphocyte_of_B_lineage	Pseudobulk-celltype1_co-lymphocyte_of_B_lineage.gct
+B_cell	Pseudobulk-celltype2_co-B_cell.gct
+myeloid_leukocyte	Pseudobulk-celltype1_co-myeloid_leukocyte.gct
+cDC	Pseudobulk-celltype2_co-myeloid_dendritic_cell.gct
+monocyte	Pseudobulk-celltype2_co-monocyte.gct
+natural_killer_cell	Pseudobulk-celltype1_co-natural_killer_cell.gct

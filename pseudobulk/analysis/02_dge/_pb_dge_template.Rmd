@@ -1,0 +1,1538 @@
+---
+params:
+  title:
+    label: "Title of the report"
+    value: "DGE & signature analysis"
+    input: text
+  dge_list_file:
+    label: "The exported DGEList from the biokitr QC report (or any RDS file with a DGEList)"
+    value: "" 
+    input: file
+  custom_signatures:
+    label: "Add custom gene sets (e.g., target genes)"
+    value:
+      # Targets: [PDCD1, CD274, LAG3, HAVCR2, TIGIT]
+      # LAG3_ligands: [FGL1, LGALS3, CLEC4G, SNCA]
+    input: text
+  reassign_signature_groups:
+    label: "Assign new group numbers to CIT and/or custom gene signatures"
+    value:
+      # ResourceCD8Tcell_sc: 1 # Move this signature to the "essential" group (1)
+      # Bcell_sc: 2 # Move this signature to group 2
+    input: text
+  output_file_prefix:
+    label: "Leave empty to use report filename as prefix for cache and results files (recommended, but works only with RStudio). If you are not using RStudio, specify a prefix for output files (needed to avoid overwriting results when running several reports in same directory; not recommended)"
+    value: # Leave empty when using RStudio (the report filename will be used)
+    input: text
+  output_dir: 
+    label: "Output directory for exported results"
+    value: "results"
+    input: file
+  exclude_failed_samples:
+    label: "Exclude failed samples from the loaded data (qcFail.ids) (recommended)"
+    value: true
+    input: checkbox
+  indication_col:
+    label: "Column name defining groups of samples for which a separate analysis should be performed (in preclinical experiments this may be the tissue, in clinical studies it may be the indication or arm; leave empty to analyze all samples together)"
+    value: 
+    input: text
+  indications:
+    label: "Define which groups (indications/tissues) from 'indication_col' should be included in the analysis (also defines the order in which they are shown in plots; ignored if 'indication_col' is not used)"
+    value: []
+    input: text
+  min_num_samples:
+    label: "TODO Instead of specifying the indications above, you can also give the min number of samples available for each group in the contrast(s). Indications with less samples will not be included in the analysis"
+    value: 3
+    input: numeric
+  analysis_type:
+    label: "The type of model and contrasts: user-defined ('custom'), user-defined clinical ('custom_clin'), PD effects ('pd'), responders vs. non-responders at baseline ('response_bl'), on-treatment ('response_ot') and PD effects 'response_pd' [not yet implemented]."
+    value: 
+    input: text
+  pd_split_var:
+    label: "Only used if analysis_type = 'pd': assess PD effects separately for the groups defined by the given column name (e.g., responders vs. non-responders; leave empty to evaluate PD effects over all patients together)"
+    value: 
+  clin_samples_type:
+    label: "Used only for 'custom_clin': include paired, baseline or on-treatment samples (for standard clin analyses such as 'pd' this is set automatically)"
+    value: 
+    choice: [paired, BL, OT]
+  paste_cols:
+    label: "Append two columns from the sample annotation (column names and values are pasted separated by '_'). E.g., set paste_cols=[Indication, Sex] and indication_col='Indication_Sex' to perform separate analysis for M/F for each indication"
+    value: 
+    input: text
+  factors:
+    label: "Specify factors and levels for categorical variables in the formula. Names only: turn those columns into factors and set levels in the order as they appear in the sampleAnnot. Named list: use specified levels. Specify only one level for setting the reference. Levels must be valide R names if they are used in 'contrasts' below."
+    value: 
+      # Group: [Vehicle_D19, CD20.TCB_D19, Vehicle_D21, CD20.TCB_D21, ...]
+  formula:
+    label: "The model formula (don't forget to define categorical variables as 'factors' above). Tip: run with exit_after_design_setup=TRUE to check the design matrix before defining the contrasts. Keep in mind that when multiple categorical variables are included in the formula, the reference level of the last variable corresponds to the baseline and is not present in the design matrix."
+    value: # "~ 0 + Group"
+    input: text
+  contrasts:
+    label: "Character vector specifying one or multiple contrasts (passed to limma::makeContrasts()). Use levels from the variables defined in 'formula' and 'factors' above. The levels must be valid R names. Optionally, provide a more readable name for the contrast for plots using '<name> = <expression>'. If the contrast name includes spaces and special characters, it must be enclosed with backticks as shown below."
+    value:
+      # - "`CD20-TCB - Vehicle (D19)` = CD20.TCB_D19 - Vehicle_D19"
+      # - "`CD20-TCB - Vehicle (D21)` = CD20.TCB_D21 - Vehicle_D21"
+      # - ...
+    input: text
+  exit_after_design_setup:
+    label: "Exit after setting up design matrix to allow for inspection before generating rest of report"
+    value: true
+    input: checkbox
+  exit_after_contrast_setup:
+    label: "Exit after setting up contrasts to allow for inspection before generating rest of report"
+    value: true
+    input: checkbox
+  exit_after_dge_analysis:
+    label: "Exit after DGE analysis to check results before running the signature analysis"
+    value: true
+    input: checkbox
+  show_cit_genes:
+    label: "Besides the genome-wide DGE results, report DGE results for CIT signature genes in separate tabs (with P-value adjusted separately for this set of pre-selected genes) [TODO Setting this to false does not yet change anything, they are always shown]"
+    value: true
+    input: checkbox
+  num_samples_expressed_cutoff:
+    label: "Filter genes that have not CPM>1 in at least num_samples_expressed_cutoff samples (has to be explicitly set in this template, automatically using the smallest group size has not been implemented yet)"
+    value: 5
+    input: numeric
+  exclude_sex_chromosomes:
+    label: "Remove genes on chromosomes X and Y from the analysis (only implemented for human data; recommended whenever male and female samples are jointly analyzed)"
+    value: false
+    input: checkbox
+  num_surrogate_variables:
+    label: "Surrogate variable analysis (SVA): number of SVs to be added to design matrix of each indication (vector of same length as indications; leave empty to not use SVA)"
+    value: 
+    input: text
+  logFC_cutoff:
+    label: "log2 fold-change cutoff used for counting significant DEGs (differentially expressed genes). Does not affect signature analysis."
+    value: 0.585 # =log2(1.5) or set to 1 as more stringent cutoff
+    input: numeric
+  FDR_cutoff:
+    label: "FDR cutoff used for counting significant DEGs. Does not affect signature analysis."
+    value: 0.1 # or set to 0.05 as more stringent cutoff
+    input: numeric
+  mean_logTPM_cutoff:
+    label: "Average expression level (log2 TPM) cutoff used for counting significant DEGs and including genes in the contrast heatmaps. Does not affect signature analysis."
+    value: -2 # Check mean expression plots to adjust
+    input: numeric
+  camera_inter_gene_cor:
+    label: "Camera inter.gene.cor parameter (preset value for inter-gene correlation within tested sets, leave empty or set NULL to estimate inter-gene correlation for each tested set) [TODO: leaving empty gives an error in CameraPR()]"
+    value: 0.01 # Leave empty for more stringent analysis
+    input: numeric
+  heatmap_num_genes:
+    label: "Show the top N most significant genes for each contrast in heatmaps"
+    value: 100
+    input: numeric
+  heatmap_num_signatures:
+    label: "Show the top N most significant signatures for each contrast in heatmaps"
+    value: 25
+    input: numeric
+  heatmap_genes_fdr_cutoff:
+    label: "Only include genes in heatmap that have FDR below the given cutoff in at least one contrast"
+    value: 0.2
+    input: numeric
+  heatmap_signatures_fdr_cutoff:
+    label: "Only include signatures in heatmap that have FDR below the given cutoff in at least one contrast"
+    value: 0.05
+    input: numeric
+  heatmap_genes_fdr_asterisks:
+    label: "Vector of length 3 indicating the FDR cutoffs for which asterisks are shown in the gene contrast heatmap"
+    value: [0.2, 0.1, 0.05]
+    input: numeric
+  heatmap_signatures_fdr_asterisks:
+    label: "Vector of length 3 indicating the FDR cutoffs for which asterisks are shown in the signature contrast heatmap"
+    value: [0.05, 0.01, 0.001]
+    input: numeric
+  heatmap_signatures_remove_duplicate_genes:
+    label: "For genes that are part of multiple signatures, only show in the first signature where they occur"
+    value: false # Set true for more compact heatmaps 
+    input: checkbox
+title: "`r params$title`"
+author: '`r params$author`'
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    self_contained: true
+    code_folding: hide
+    mathjax: default
+    number_sections: true
+    theme: spacelab
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, message = FALSE}
+# -----------------------------------------------------------------------------
+# Developer 
+
+# The name and version of this report template (printed in last section)
+templateName <- "voom_limma_clin"
+templateVersion <- "0.1.3"
+# Set TRUE to enable rmarkdown cache
+knitr::opts_chunk$set(cache = FALSE)
+# Set FALSE to skip all output (plots, tables), useful for debugging 
+showOutput <- TRUE
+
+# -----------------------------------------------------------------------------
+
+# Knitr options (important to set error=FALSE, otherwise the evaluation does not stop after an error!)
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, message = TRUE, warning = TRUE, error = FALSE)
+
+# Libraries
+library(biokitr)
+library(ComplexHeatmap)
+library(edgeR)
+library(limma)
+library(zebra, include.only = "has_value")
+
+# TODO Check that required parameters were set by user
+requiredPaths <- c("dge_list_file")
+checkPathsExist(params, requiredPaths)
+requiredParams <- c("analysis_type")
+checkParamsNotEmpty(params, requiredParams)
+
+# Add surrogate variables to model
+addSVs <- has_value(params$num_surrogate_variables) && sum(params$num_surrogate_variables > 0) > 0
+```
+
+```{r initialize}
+# Load data
+dge <- readRDS(params$dge_list_file)
+sampleAnnot <- data.table(dge$samples)
+
+# Paste columns
+if (has_value(params$paste_cols)) {
+	endifnot(length(params$paste_cols) == 2, msg = "paste_cols should be of length two")
+	endifnotfound(params$paste_cols, names(sampleAnnot), msg = "paste_cols not found in sample annotation")
+	newColName <- paste(params$paste_cols, collapse = "_")
+	sampleAnnot[[newColName]] <- paste(sampleAnnot[[params$paste_cols[1]]], 
+																		 sampleAnnot[[params$paste_cols[2]]], sep = "_")
+}
+
+# Copy before filtering
+sampleAnnot.all <- data.table(sampleAnnot)
+
+# Filter selected indications/tissues
+if (has_value(params$indication_col)) {
+	endifnotfound(params$indication_col, names(sampleAnnot), 
+								msg = "'indication_col' is not a column name found in the sample annotation")
+	endifnotfound(params$indications, sampleAnnot[[params$indication_col]], 
+								msg = paste("'selected_tissues' not found in column", params$indication_col, "of the sample annotation"))
+	# For simplicity in code below, rename column to 'Indication'
+	if ("Indication" %in% names(sampleAnnot) && !params$indication_col == "Indication") {
+		warning("Sample annotation column 'Indication' will be overwritten with the 'indication_col': ", params$indication_col)
+	}
+	sampleAnnot[["Indication"]] <- sampleAnnot[[params$indication_col]]
+	sampleAnnot.all[["Indication"]] <- sampleAnnot.all[[params$indication_col]]
+	# Filter for selected indications
+	if (has_value(params$indications)) {
+		indications <- params$indications
+	} else if (is.factor(sampleAnnot$Indication)) {
+		indications <- levels(sampleAnnot$Indication)
+	} else {
+		indications <- unique(sampleAnnot$Indication)
+	}
+	sampleAnnot <- sampleAnnot[Indication %in% indications]
+	sampleAnnot[, Indication := factor(Indication, levels = indications)]
+
+} else {
+	if ("Indication" %in% names(sampleAnnot)) {
+		warning("Sample annotation column 'Indication' will be overwritten")
+	}
+	# Add a dummy variable to include all samples in the analysis
+	indications <- "All"
+	sampleAnnot[, Indication := "All"]
+}
+
+# Exclude failed samples
+failedSamples <- NULL
+if (params$exclude_failed_samples && "QC_FAIL" %in% names(sampleAnnot)) {
+	failedSamples <- sampleAnnot[QC_FAIL == TRUE, SampleName]
+  sampleAnnot <- sampleAnnot[QC_FAIL != TRUE]
+}
+
+# Select samples based on analysis type
+isClinTemplate <- FALSE
+sampleType <- "all"
+if (has_value(params$clin_samples_type)) {
+	sampleType <- params$clin_samples_type
+}
+if (params$analysis_type == "pd") {
+	isClinTemplate <- TRUE
+	sampleType <- "paired"
+} else if (params$analysis_type == "response_bl"){
+	isClinTemplate <- TRUE
+	sampleType <- "BL"
+	sampleAnnot <- sampleAnnot[Visit == "BL" & !(Response == "Not available" | is.na(Response))]
+} else if (params$analysis_type == "custom_clin") {
+	isClinTemplate <- TRUE
+} else if (params$analysis_type != "custom") {
+	stop("Invalid value for param 'analysis_type': ", params$analysis_type)
+}
+
+# Select paired samples
+if (sampleType == "paired") {
+	pairedSamples <- getPairedSamples(sampleAnnot)
+	sampleAnnot <- sampleAnnot[Patient %in% pairedSamples$Patient]
+}
+
+# Add variable for PD effects by group
+if (params$analysis_type == "pd" && has_value(params$pd_split_var)) {
+	sampleAnnot <- addVisitSplitCol(sampleAnnot, params)
+}
+
+# Define variables to be converted to factors and their levels
+factors <- defineFactors(params)
+# Convert specified variables to factors and set their levels
+sampleAnnot <- variablesAsFactors(sampleAnnot, factors)
+
+# Update dge
+index <- dge$samples$SampleID %in% sampleAnnot$SampleID
+dge <- edgeR::DGEList(counts = dge$counts, samples = dge$samples, genes = dge$genes)
+dge <- dge[, index]
+endifnot(dge$samples$SampleID == sampleAnnot$SampleID, msg = "Inconsistent col order")
+
+# Remove sex chromosomes
+if (params$exclude_sex_chromosomes) {
+	xyGenes <- geneCoords[Chrom %in% c("chrX", "chrY"), GeneId]
+	dge <- dge[!(dge$genes$GeneID %in% xyGenes), ]
+}
+
+# Remove lowly expressed genes using approach recommended by edgeR
+genesBeforeFiltering <- dge$genes
+dge <- biokitr::removeLowExpressedGenes(dge, numSamplesExpressedCutoff = params$num_samples_expressed_cutoff)
+# TMM normalization (that's the default method)
+dge <- edgeR::calcNormFactors(dge, method = "TMM")
+
+# Split by indication
+dgeSplit <- list()
+sampleAnnotSplit <- list()
+for (ind_i in indications) {
+	annot_i <- sampleAnnot[Indication == ind_i]
+	dge_i <- dge[, dge$sample$SampleID %in% annot_i$SampleID]
+	# TMM normalization
+	dge_i <- edgeR::calcNormFactors(dge_i, method="TMM")
+	dgeSplit[[ind_i]] <- dge_i
+	sampleAnnotSplit[[ind_i]] <- annot_i
+}
+
+# Define output file prefix
+outputPrefix <- ""
+if (has_value(params$output_file_prefix)) {
+  # Take the user-specified prefix
+  outputPrefix <- params$output_file_prefix
+} else if (is.function(getFromNamespace("getActiveDocumentContext", "rstudioapi"))) {
+  # Take the .Rmd filename
+  outputPrefix <- basename(rstudioapi::getActiveDocumentContext()$path)
+  outputPrefix <- stringr::str_replace(outputPrefix, ".Rmd", "")
+  outputPrefix <- stringr::str_replace(outputPrefix, ".rmd", "")
+}
+
+# Load gene sets and cached camera results
+cameraCacheFile <- paste0("cache/", outputPrefix, "_camera.RData")
+if (file.exists(cameraCacheFile)) {
+	# Loads: cam, signatures, signaturesAnnot, signaturesSummary
+  load(cameraCacheFile)
+
+} else {
+	# Check that genes in custom signatures are found
+	if (has_value(params$custom_signatures)) {
+		customSigGenes <- unlist(params$custom_signatures)
+		endifnotfound(customSigGenes, genesBeforeFiltering$GeneSymbol, msg="Custom signature genes not found in annotation:")
+	}
+  # Load gene sets
+  tmp <- loadSignatures(customSigs = params$custom_signatures, customSigsCollection = "pRED CIT signatures")
+  signatures <- tmp$signatures
+  signaturesAnnot <- tmp$signaturesAnnot
+  signaturesSummary <- tmp$signaturesSummary
+}
+```
+
+# Overview
+
+<!-- ------------------------------------------------------------ -->
+<!-- You may want to add a more detailed description of the study -->
+<!-- and the biological questions here                            -->
+<!-- ------------------------------------------------------------ -->
+
+## Analysis
+
+This report performs:
+
+* Differential gene expression (DGE) analysis with voom-limma
+* Signature enrichment analysis with CAMERA
+
+Besides custom models that can be defined by the user, standardized models are provided for common clinical analyses.
+
+> `analysis_type = `r params$analysis_type``
+
+### Abbreviations {-}
+
+* `DGE`: Differential gene expression
+* `DEGs`: Significant differentially expressed genes
+
+## Input data
+
+```{r print_input_data, results="asis", echo=FALSE}
+cat("Loaded data:\n\n")
+cat("* `", params$dge_list_file, "`\n\n")
+
+cat("Filtering:\n\n")
+cat("* Selected indications/tissues: `", paste(indications, collapse = ", "), "`\n")
+cat("* Including **", sampleType, " samples**\n", sep = "")
+if (has_value(failedSamples)) {
+	cat("* `QC_FAIL` samples excluded:", paste(failedSamples, collapse = ", "), "\n")
+} else {
+	cat("* No QC failed samples (they may have already been excluded in the input data)\n")
+}
+cat("* Total number of samples after filtering: `", nrow(sampleAnnot), "`\n\n", sep = "")
+
+cat("### Number of samples {.tabset -}\n\n")
+
+# TODO Print some useful info also for the 'custom' template
+# For the clinical template, maybe also generalize (instead of just response, show any model variables)
+if (isClinTemplate) {
+	cat("#### Samples selected for analysis {.tabset -}\n\n")
+	cat("#####", sampleType, "{-}\n\n")
+	dt <- getNumSamples(sampleAnnot, sampleType)
+	print(printTable(dt, showOutput))
+	
+	cat("#### All samples available in loaded dataset {.tabset -}\n\n")
+	for (s in c("BL", "OT", "paired")) {
+		cat("#####", s, "{-}\n\n")
+		dt <- getNumSamples(sampleAnnot.all, sampleType = s)
+		print(printTable(dt, showOutput))
+	}
+	
+	if (sampleType == "paired") {
+		cat("### Biopsy location for paired samples {.tabset -}\n\n")
+		cat("#### Inconsistent biopsy location {-}\n\n")
+		print(printTable(pairedSamples[BiopsyLocation_BL != BiopsyLocation_OT], showOutput))
+		cat("#### Consistent biopsy location {-}\n\n")
+		print(printTable(pairedSamples[BiopsyLocation_BL == BiopsyLocation_OT], showOutput))
+	}
+} else {
+  # Print number of samples for custom analysis
+  cat("### #Samples by group\n\n")
+	# TODO deal with indication here
+	designVars <- names(factors)
+  dt <- sampleAnnot[, .N, by = designVars]
+  setorderv(dt, designVars)
+  printTable(dt, showOutput)
+}
+
+cat("### Full sample annotation {.tabset -}\n\n")
+cat("#### Hide {-}\n\n")
+cat("#### Show {-}\n\n")
+printDT(sampleAnnot, showOutput = showOutput)
+```
+
+
+## Genes of interest {.tabset}
+
+```{r genes_of_interest}
+# Get the CIT signatures and annotation
+citSigs <- signatures[signaturesAnnot[Collection == "pRED CIT signatures", Name]]
+citSigsAnnot <- getCitSigsAnnot(customSigs = params$custom_signatures,
+																reassignSigGroups = params$reassign_signature_groups)
+
+# Get the CIT signature genes and annotation
+# For non-human species, ortholog information is included in the annotation
+citGenesAnnot <- getCitGenesAnnot(citSigs, citSigsAnnot, genes = dge$genes, allGenes = genesBeforeFiltering)
+# Remove reference/housekeeping genes
+citGenesAnnot <- citGenesAnnot[Type != "Reference"]
+
+# Vector of unique CIT genes
+# For non-human species, these are the species (not human) genes symbols
+citGenes <- unique(citGenesAnnot$Gene)
+# Only the essential CIT genes
+essCitGenes <- unique(citGenesAnnot[Group <= 1, Gene])
+```
+
+```{r print_genes_of_interest, results="asis", echo=FALSE}
+if (params$show_cit_genes) {
+	cat("DGE results will be reported separately for the following set of genes (with P-values adjusted separately for each set; see Sect. X for details on the pRED CIT signatures):\n\n")
+	cat("* `Genome-wide`: all genes\n")
+	cat("* `Essential CIT genes`: the union of all genes in the expanded set of essential pRED CIT signatures (groups 1 and 2)\n")
+	cat("* `All CIT genes`: the union of all genes in the pRED CIT signatures collection (all groups except the reference/housekeeping genes)\n\n")
+
+	cat("### Hide {-}\n\n")
+	cat("### CIT genes {-}\n\n")
+	printDT(citGenesAnnot, showOutput = showOutput)
+
+} else {
+	cat("* No genes of interest selected, DGE results will be reported for all genes / genome-wide\n")
+	cat("* To report DGE results for CIT signature genes separately (with P-values adjusted for this set of pre-selected genes), set `show_cit_genes = true`\n\n")  
+}
+```
+
+
+
+# Model setup
+
+## Design matrix {.tabset}
+
+```{r model, results="asis"}
+# PD effects
+if (params$analysis_type == "pd") {
+	if (has_value(params$pd_split_var)) {
+		# Model formula (note: if this is changed, also adapte 'factors' above)
+		formStr <- "~ 0 + Patient + VisitSplit"	
+		# Contrast for each level except BL (which is at first position)
+		levs <- levels(sampleAnnot$VisitSplit)[-1]
+		contrastsDef <- paste(levs, "=", levs)
+	} else {
+		# Basic PD effects model (note: if this is changed, also adapt 'factors' above)
+		formStr <- "~ 0 + Patient + Visit"
+		# Contrast for OT
+		contrastsDef <- "OT = OT"
+	}
+} else {
+	formStr <- params$formula
+	contrastsDef <- params$contrasts
+}
+
+# Model formula
+form <- formula(formStr)
+# The variables
+designCols <- all.vars(form)
+# Checks
+endifnotfound(designCols, names(sampleAnnot), msg = "Variables for design matrix not found in sample annotation")
+```
+
+> We are fitting the model: `r formStr`
+
+The design matrix is visualized in the tabs below as a sanity check.
+
+### Hide {-}
+
+```{r design}
+designSplit <- list()
+design0Split <- list()
+# Design matrix heatmaps
+hmList <- list()
+maxNumRows <- 0
+maxNumCols <- 0
+for (ind_i in indications) {
+	annot_i <- sampleAnnotSplit[[ind_i]]
+	
+	# Drop unused levels from factors
+	for (f in names(factors)) {
+		annot_i[[f]] <- droplevels(annot_i[[f]])
+	}
+	
+	# Build design matrix
+	design <- model.matrix(form, data = annot_i)
+	rownames(design) <- annot_i$SampleName
+	# Simplify column names
+	str <- colnames(design)
+	for (col_d in designCols) {
+		str <- gsub(col_d, "", str)
+	}
+	#str <- gsub("patient", "Patient.", colnames(design))
+	colnames(design) <- make.names(str)
+	# Add to list
+	designSplit[[ind_i]] <- design
+	
+	# Null model for SVA analysis
+	if (addSVs) {
+		stop("TBD")
+		# This is for the sva package
+		design0 <- model.matrix(~ 1 + patient, data = annot_i)
+		# Simplify column names
+		str <- gsub("patient", "Patient.", colnames(design0))
+		#str <- gsub("annot_i.model\\$Gender", "", colnames(design0))
+		colnames(design0) <- str
+		design0Split[[ind_i]] <- design0
+	}
+	
+	# Plot design matrix
+	hm <- ComplexHeatmap::Heatmap(design, name = "Design matrix", cluster_rows = FALSE, cluster_columns = FALSE,
+																col = RColorBrewer::brewer.pal(9, "BuPu"),
+																rect_gp = gpar(col = "grey", lwd = 1),
+																column_names_gp = gpar(fontsize = 9), row_names_gp = gpar(fontsize = 9))
+	hmList[[ind_i]] <- hm
+	# Max number of rows/cols to set fig size in chunk below
+	maxNumRows <- max(maxNumRows, nrow(hm))
+	maxNumCols <- max(maxNumCols, ncol(hm))
+}
+```
+
+```{r design_heatmaps, results="asis", fig.width=3.5+maxNumCols*0.45, fig.height=0.5+maxNumRows*0.15}
+for (ind_i in indications) {
+  cat("\n\n###", ind_i, "{-}\n\n")
+  print(hmList[[ind_i]])
+}
+```
+
+```{r exit_after_design_setup, results="asis", cache=FALSE}
+if (params$exit_after_design_setup) {
+	cat("\n\n## Quit {-}\n\n")
+	cat("> Exiting to allow inspection of design matrix, to continue set: `exit_after_design_setup = FALSE`\n\n")
+	knitr::knit_exit()
+}
+```
+
+# Data pre-processing
+
+## Expressed genes {.tabset}
+
+* Only genes that are expressed (`CPM > 1`) in at least ``r params$num_samples_expressed_cutoff` samples` are included
+* The filtering is done on the combined samples (across indications) so that each analysis has the same universe of genes
+* See QC report for expression distribution of genes before and after filtering
+
+```{r print_num_expressed, results="asis"}
+# Print number of expressed / not expressed genes
+cat("### All genes {-}\n\n")
+dt <- getExpressedGenesSummary(numTot = nrow(genesBeforeFiltering), numExpressed = nrow(dge))
+printTable(dt, showOutput)
+
+if (params$show_cit_genes) {
+	cat("### CIT genes {-}\n\n")
+	dt <- getExpressedGenesSummary(numTot = length(citGenes), numExpressed = sum(citGenes %in% dge$genes$GeneSymbol))
+	print(printTable(dt, showOutput))
+}
+```
+
+## Voom transformation {.tabset}
+
+The tabs show the mean-variance trend before Voom-normalization
+
+### Hide {-}
+
+```{r voom_transformation, results="asis", fig.width=6, fig.height=5}
+dgeVoomSplit <- list()
+for (ind_i in indications) {
+	cat("\n\n###", ind_i, "{-}\n\n")
+
+	# Voom (edgeR)
+	# - If you quantile-normalize, it doesn't matter whether calcNormFactors has been
+	# called before or not (results are identical at precision 1e-10)
+	# - Default is normalize.method="none". But values are still voom transformed, relative
+	# difference of values (logCPM before voom) is about ~10% for many values
+	# - PCA plots look very similar (almost identical) for normalize.method "none" vs. "quantile"
+	# - PCA plots look completely different for logCPM before voom (TMM) vs. after voom (batch
+	# differences much more clearly visible before voom)
+	dgeVoom_i <- limma::voom(dgeSplit[[ind_i]], designSplit[[ind_i]], plot=showOutput)
+	dgeVoomSplit[[ind_i]] <- dgeVoom_i
+}	
+```
+
+
+## Surrogate variable analysis (SVA)
+
+### Estimated #SVs {-}
+
+Estimated number of surrogate variables (SVs) that should be included in the differential expression model:
+
+```{r estimate_num_sv, fig.width=5, fig.height=6, results="asis"}
+numSvs <- data.table()
+for (ind_i in indications) {
+	# Estimate the number of surrogate variables
+	voom_i <- dgeVoomSplit[[ind_i]]
+	n.sv <- sva::num.sv(voom_i$E, designSplit[[ind_i]], method="leek")
+	#n.sv <- sva::num.sv(cpm(dge, log=TRUE), design, method="leek")
+	numSvs <- rbind(numSvs, data.table(N = n.sv, Indication = ind_i))
+}
+setnames(numSvs, "N", "#SVs")
+printTable(numSvs, showOutput)
+```
+
+
+### Adding SVs to design matrix {-}
+
+```{r add_sv, results="asis"}
+if (addSVs) {
+	# TODO: Adapt code to split by indication, check if correct
+	stop("Not implemented yet")
+	cat("\n\n**Adding SVs to the model**\n\n")
+	
+	# Estimate surrogate variable
+	# TBD Find out what the correct design0 is!!! In beti I used NULL
+  svobj = sva(dge.voom$E, mod=design, mod0=NULL, n.sv=n.sv)
+  # Add to model
+  design <- cbind(design,svobj$sv)
+  N <- ncol(design)
+  colnames(design)[(N-2):N] <- paste0("SV", 1:n.sv)
+	
+  # Rerun voom with the new model  
+	voom_i <- voom(dge, design, plot=FALSE)
+	pheatmap::pheatmap(design, cluster_cols = FALSE, cluster_rows = FALSE)
+	
+} else {
+	cat("> No SVs added, set `num_surrogate_variables` to enable SVA")	
+}
+```
+
+
+## Average expression levels {.tabset}
+
+```{r quantiles}
+# Prepare for plotting
+tpms <- biokitr::getTpm(dge, log = TRUE)
+avgTpms <- data.table(GeneSymbol = dge$genes$GeneSymbol, mean_log2_TPM = rowMeans(tpms))
+# Percent genes below the selected cutoff
+quantileCutoff <- round(1000*sum(avgTpms$mean_log2_TPM < params$mean_logTPM_cutoff) / nrow(avgTpms))/10
+# Quantiles
+quants <- quantile(avgTpms$mean_log2_TPM, probs = c(0.01, 0.02, 0.05, 0.1, 0.2))
+dt <- data.table(Quantile = names(quants), `All genes` = quants)
+if (params$show_cit_genes) {
+	quantsCitGenes <- quantile(avgTpms[GeneSymbol %in% citGenes, mean_log2_TPM], probs = c(0.01, 0.02, 0.05, 0.1, 0.2))
+	dt[, `CIT genes` := quantsCitGenes]
+}
+```
+
+Here we include information on the distribution of the average log2 TPM expression levels across all genes. Note that genes that are not/lowly expressed have already been excluded.
+
+**Selected cutoff**: genes with average expression below this cutoff in a given indication are not counted as *significant* differentially expressed (they are still included in volcano plots, signature analysis and exported results)
+
+* `avg_log2_TPM < `r params$mean_logTPM_cutoff`` (`r quantileCutoff`% of genes)
+
+### Quantiles {-}
+
+`r printTable(dt, showOutput)`
+
+### Histogram {-}
+
+The red line indicates the selected cutoff
+
+```{r expr_dist, fig.width=6, fig.height=4}
+gg <- ggplot(avgTpms, aes(mean_log2_TPM)) +
+  geom_histogram(bins=100) +
+  geom_vline(xintercept = params$mean_logTPM_cutoff, color = "red") +
+  theme_bw() +
+  xlab("Average log2 TPM") +
+  ylab("#Genes")
+gg
+```
+
+### Empirical cumulative distribution {-}
+
+The red line indicates the selected cutoff
+
+```{r expr_cum_dist, fig.width=6, fig.height=4}
+gg <- ggplot(avgTpms, aes(mean_log2_TPM)) +
+  stat_ecdf(geom = "step") +
+  geom_vline(xintercept = params$mean_logTPM_cutoff, color = "red") +
+  theme_bw() +
+  xlab("Average log2 TPM") +
+  ylab("Fraction of genes < X")
+gg
+```
+
+
+
+# Differential gene expression
+
+**In the various plots below, significant DEGs are defined using the following cutoffs**
+
+* `|logFC| > `r params$logFC_cutoff``
+* `FDR < `r params$FDR_cutoff``
+* `Average log2(TPM) > `r params$mean_logTPM_cutoff``
+
+## Contrasts {.tabset}
+
+### Hide {-}
+
+```{r contrast_matrix, results="asis"}
+# Contrasts
+contrastsSplit <- list()
+for (ind_i in indications) {
+	cat("\n\n###", ind_i, "{-}\n\n")
+	
+	contrasts_i <- makeContrasts(
+		# Treatment effect within each group, time-point
+		contrasts = contrastsDef,
+		# Treatment effect averaged across groups
+		#D21 = (C1D21_G1 + RID21_G2) / 2,
+		levels = colnames(designSplit[[ind_i]])) 
+
+	# If format is: '<Name> = <Contrast>', extract <Name> (does not have any effect if there is no '=')
+	str <- colnames(contrasts_i)
+	str <- stringr::str_split(str, "=", simplify = TRUE)
+	str <- stringr::str_trim(str[, 1])
+	str <- stringr::str_replace_all(str, "`", "")
+	colnames(contrasts_i) <- str
+	
+	# Check and add to list	
+	#stopifnot(all(colSums(contrasts_i) == 1))
+	contrastsSplit[[ind_i]] <- contrasts_i
+	# Print
+	dt <- data.table(Levels = rownames(contrasts_i), contrasts_i)
+	print(printTable(dt, showOutput))
+}
+```
+
+```{r exit_after_contrast_setup, results="asis", cache=FALSE}
+if (params$exit_after_contrast_setup) {
+	cat("\n\n## Quit {-}\n\n")
+	cat("> Exiting to allow inspection of model & contrast setup, to continue set: `exit_after_contrast_setup = FALSE`\n\n")
+	knitr::knit_exit()
+}
+```
+
+
+## Fitting model {.tabset}
+
+The tabs show the residual standard deviation versus average log expression for the fitted models
+
+### Hide {-}
+
+```{r fit_linear_model, results="asis", fig.width=6, fig.height=5}
+# Contrasts
+topdt <- data.table()
+for (ind_i in indications) {
+	cat("\n\n###", ind_i, "{-}\n\n")
+
+	useDuplicateCorrelation <- FALSE
+	if (useDuplicateCorrelation) {
+		stop("Adapt for split lists (dgeVoomSplit, designSplit, ...)")
+		
+		# Iteration 1
+		# Estimate correlation between individuals (this takes a minute to run)
+		# corfit$consensus: the average estimated inter-individual correlation
+		# => avg. correlation is about 0.2, when randomizing subjects it is close to 0 as expected
+		corfit <- duplicateCorrelation(dge.voom, design, block=sampleAnnot.model$Subject)
+		
+		# Iteration 2
+		# Call voom() and dupliateCorrelation() again, as recommended here:
+		# https://support.bioconductor.org/p/59700/
+		
+		# Re-run voom with estimated intra-individual correlation
+		dge.voom.cor <- voom(dge, design, block=sampleAnnot.model$Subject, correlation=corfit$consensus, 
+												 normalize.method="quantile", plot=FALSE)
+		# => The normalized expression values do not change, but the precision weights do
+		stopifnot(sum(dge.voom$E != dge.voom.cor$E) == 0)
+		stopifnot(sum(dge.voom$weights == dge.voom.cor$weights) == 0)
+		#hist(dge.voom$weights - dge.voom.cor$weights)
+		
+		# Re-estimate correlation
+		tmp <- duplicateCorrelation(dge.voom.cor, design, block=sampleAnnot.model$Subject)
+		# Check convergence (we could iterate further, but this seems not necessary)
+		stopifnot(abs(corfit$consensus - tmp$consensus) < 1e-4)
+		corfit <- tmp
+		
+		# Fit model with inter-individual correlation
+		fit <- lmFit(dge.voom.cor, design, block=sampleAnnot.model$Subject, correlation=corfit$consensus)
+		
+	} else {
+		# Fit ignoring inter-individual correlation
+		fit <- lmFit(dgeVoomSplit[[ind_i]], designSplit[[ind_i]])
+	}
+	
+	# Compute contrasts
+	efit <- contrasts.fit(fit, contrasts=contrastsSplit[[ind_i]])
+	efit <- eBayes(efit)
+	# treat(): instead of testing for genes which have log-fold-changes different from zero, 
+	# it tests whether the log2-fold-change is greater than lfc in absolute value 
+	# => Much more stringent than eBayes followed by cutoff on logFC! 
+	#efit <- treat(efit, lfc=minLogFC)
+	
+	# Compute contrasts and top tables for all genes
+	expr <- getTpm(dgeSplit[[ind_i]], log = TRUE, rowNames = "GeneSymbol")
+	dt <- getTopTable(efit, colnames(contrastsSplit[[ind_i]]), logTPM=expr)
+	dt[, Indication := ind_i]
+	topdt <- rbind(topdt, dt)
+	
+	# Plot residual standard deviation versus average log expression for fitted model
+	if (showOutput) {
+		plotSA(efit)
+	}
+}
+```
+
+
+## Results table {.tabset}
+
+For performance reasons, this table only includes genes with a nominal p-value < 0.01 in at least one contrast (i.e., not adjusted for multiple testing; only genes with FDR < 0.05 or a similar cutoff should be considered significant). Refer to the exported results files for tables including all genes (see last section).
+
+**This interactive table can be filtered, searched and sorted. Columns for each indication and contrast:**
+
+* `logFC` The log2 fold-change of the gene
+* `PVal` The *nominal* p-value (not corrected for multiple testing)
+* `FDR` The FDR corrected p-value
+* `logTPM` The average expression level of the gene
+
+```{r topdt}
+# Drop unused columns, keep HumanGeneSymbol only for non-human species
+geneSymbolCols <- "GeneSymbol"
+if ("HumanGeneSymbol" %in% names(topdt)) {
+	geneSymbolCols <- c(geneSymbolCols, "HumanGeneSymbol")
+}
+keep <- c("Indication", "Contrast", geneSymbolCols, "Description", "logFC", "P.Value", "AvgLogTPM", "t")
+topdt <- topdt[, keep, with=FALSE]
+
+# Add indication to contrast names
+if (length(unique(topdt$Indication)) > 1) {
+	topdt[, Contrast := paste0(Indication, "_", Contrast)]
+}
+
+# Order contrasts by indication as in yaml param
+if (has_value(indications) & length(indications) > 1) {
+	endifnotfound(unique(topdt$Indication), indications, msg = "Unknown indications")
+	topdt[, Indication := factor(Indication, levels = indications)]
+	setorder(topdt, Indication)
+}
+topdt[, Contrast := factor(Contrast, levels = unique(topdt$Contrast))]
+
+# Add FDR and do some cleanup
+topdt <- addSignificanceCols(topdt, params$logFC_cutoff, params$FDR_cutoff, params$mean_logTPM_cutoff)
+# topdt for cit genes
+topdt.citGenes <- addSignificanceCols(topdt[GeneSymbol %in% citGenes], params$logFC_cutoff,
+																			params$FDR_cutoff, params$mean_logTPM_cutoff)
+topdt.essCitGenes <- addSignificanceCols(topdt[GeneSymbol %in% essCitGenes], params$logFC_cutoff,
+																				 params$FDR_cutoff, params$mean_logTPM_cutoff)
+
+# Contrasts and indications
+contrastsAnnot <- data.table(Contrast = levels(topdt$Contrast), Indication = levels(topdt$Indication))
+contrasts <- contrastsAnnot$Contrast
+
+# Cast as wide table
+topdt.wide <- getWideTopdt(topdt)
+topdt.citGenes.wide <- getWideTopdt(topdt.citGenes)
+topdt.essCitGenes.wide <- getWideTopdt(topdt.essCitGenes)
+```
+
+```{r print_topdt, results="asis", echo=FALSE, warning=FALSE}
+cat("### All genes {-}\n\n") 
+# Print table (include only genes with pval < 0.01 for efficiency)
+tableGenes <- topdt[P.Value < 0.01, GeneSymbol]
+dt <- topdt.wide[GeneSymbol %in% tableGenes]
+cat("> Pre-filtered for genes with nominal p-value < 0.01 in at least on contrast")
+printDT(dt, signifCols = 3:ncol(dt), showExcelButton = FALSE, showOutput = showOutput)
+
+cat("### CIT genes {-}\n\n")
+printDT(topdt.citGenes.wide, signifCols = 3:ncol(dt), showExcelButton = TRUE, showOutput = showOutput)
+
+cat("### Essential CIT genes {-}\n\n")
+printDT(topdt.essCitGenes.wide, signifCols = 3:ncol(dt), showExcelButton = TRUE, showOutput = showOutput)
+```
+
+
+## Number of differentially expressed genes {.tabset}
+
+* The number of significant deferentially expressed genes (DEGs) are shown for each contrast
+* See beginning of Section for cutoffs used to define DEGs
+* Color shows the direction (significantly up- and down-regulated genes)
+
+```{r num_degs, results="asis", echo=FALSE, fig.width=7, fig.height=1+0.28*length(contrasts)}
+numDeg <- getNumDeg(topdt, params$logFC_cutoff, params$FDR_cutoff, params$mean_logTPM_cutoff)
+numDeg.citGenes <- getNumDeg(topdt.citGenes, params$logFC_cutoff, params$FDR_cutoff, params$mean_logTPM_cutoff)
+numDeg.essCitGenes <- getNumDeg(topdt.essCitGenes, params$logFC_cutoff, params$FDR_cutoff, params$mean_logTPM_cutoff)
+
+if (showOutput) {
+cat("### All genes {.tabset -}\n\n")
+plotNumDeg(numDeg$numDeg) 
+cat("### CIT genes {.tabset -}\n\n")
+plotNumDeg(numDeg.citGenes$numDeg)
+cat("### Essential CIT genes {.tabset -}\n\n")
+plotNumDeg(numDeg.essCitGenes$numDeg)
+}
+```
+
+
+## Overlap between DEGs {.tabset}
+
+* Percent of DEGs in contrast i (rows) where we see a similar effect in contrast j (columns).
+* The DEGs in the 1st contrast (rows) are defined using the same cutoffs as above
+    + `|logFC| > `r params$logFC_cutoff``
+    + `FDR < `r params$FDR_cutoff``
+    + `Average log2(TPM) > `r params$mean_logTPM_cutoff``
+* For the 2nd contrast (columns), we also permit boarderline significant The DEGs
+    + `|logFC| > `r params$logFC_cutoff/2``
+    + `FDR < `r params$FDR_cutoff*2``
+
+```{r overlap_heatmap_up, results="asis", echo=FALSE, fig.width = 0.2*length(contrasts) + 3.25, fig.height = 0.2*length(contrasts) + 3}
+if (showOutput) {
+	cat("\n\n### All genes {.tabset -}\n\n")
+	plotOverlapDeg(numDeg)
+	cat("\n\n### CIT genes {.tabset -}\n\n")
+	plotOverlapDeg(numDeg.citGenes)
+	cat("\n\n### Essential CIT genes {.tabset -}\n\n")
+	plotOverlapDeg(numDeg.essCitGenes)
+}
+```
+
+
+## Volcano plots {.tabset}
+
+Volcano plots show the **strength of the effect** (x-axis: log fold-change) and the **significance** (y-axis: -log10(p-value)) for each gene
+
+```{r dge_pd_volcano, fig.width=7.5, fig.height=5.5, results="asis", warning=FALSE}
+# Volcano for each contrast
+if (showOutput) { 
+	# TODO A lot is hard-coded, use 'params$heatmap_genes_fdr_asterisks' or similar...
+  volcanoPlot(topdt, volcano.logFC.cutoff = params$logFC_cutoff, volcano.numLabels = 20, headingLevel="###")
+}
+```
+
+
+## Differential expression heatmap {.tabset}
+
+```{r gene_heatmaps_info, results="asis", fig.width=3.5, fig.height=8, echo=FALSE, warning=FALSE}
+# The cutoffs for showing asterisks in heatmap
+cutoffs <- sort(params$heatmap_genes_fdr_asterisks)
+
+# Print info
+cat("* Heatmap showing **genes in rows** and **contrasts in columns**\n")
+cat("* The color shows the **log2 fold-change** (**blue: down**, **red: up**)\n")
+cat("* **Significance level** is indicated with asterisks (FDR correction is done separately for each contrast):\n")
+cat("    + **`***` ", cutoffs[1]*100, "% FDR**\n")
+cat("    + **`**` ", cutoffs[2]*100, "% FDR**\n")
+cat("    + **`*` ", cutoffs[3]*100, "% FDR**\n\n")
+
+# The heatmaps (generate here to adapt chunk fig sizes below)
+hmUp <- contrastHeatmap(dt = topdt, featureCol = "GeneSymbol", effectCol = "logFC",
+												effectTitle = "logFC", pvalCol = "P.Value",
+												fdrCol = "FDR", fdrCutoff = params$heatmap_genes_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+												meanLevelCol = "AvgLogTPM", meanLevelCutoff = params$mean_logTPM_cutoff,
+												showTopN = params$heatmap_num_genes, direction = "up")
+hmDown <- contrastHeatmap(dt = topdt, featureCol = "GeneSymbol", effectCol = "logFC",
+											effectTitle = "logFC", pvalCol = "P.Value",
+											fdrCol = "FDR", fdrCutoff = params$heatmap_genes_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+											meanLevelCol = "AvgLogTPM", meanLevelCutoff = params$mean_logTPM_cutoff,
+											showTopN = params$heatmap_num_genes, direction = "down")
+
+hmUp.citGenes <- contrastHeatmap(dt = topdt.citGenes, featureCol = "GeneSymbol", effectCol = "logFC",
+												effectTitle = "logFC", pvalCol = "P.Value",
+												fdrCol = "FDR", fdrCutoff = params$heatmap_genes_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+												meanLevelCol = "AvgLogTPM", meanLevelCutoff = params$mean_logTPM_cutoff,
+												showTopN = params$heatmap_num_genes, direction = "up")
+hmDown.citGenes <- contrastHeatmap(dt = topdt.citGenes, featureCol = "GeneSymbol", effectCol = "logFC",
+											effectTitle = "logFC", pvalCol = "P.Value",
+											fdrCol = "FDR", fdrCutoff = params$heatmap_genes_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+											meanLevelCol = "AvgLogTPM", meanLevelCutoff = params$mean_logTPM_cutoff,
+											showTopN = params$heatmap_num_genes, direction = "down")
+
+hmUp.essCitGenes <- contrastHeatmap(dt = topdt.essCitGenes, featureCol = "GeneSymbol", effectCol = "logFC",
+												effectTitle = "logFC", pvalCol = "P.Value",
+												fdrCol = "FDR", fdrCutoff = params$heatmap_genes_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+												meanLevelCol = "AvgLogTPM", meanLevelCutoff = params$mean_logTPM_cutoff,
+												showTopN = params$heatmap_num_genes, direction = "up")
+hmDown.essCitGenes <- contrastHeatmap(dt = topdt.essCitGenes, featureCol = "GeneSymbol", effectCol = "logFC",
+											effectTitle = "logFC", pvalCol = "P.Value",
+											fdrCol = "FDR", fdrCutoff = params$heatmap_genes_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+											meanLevelCol = "AvgLogTPM", meanLevelCutoff = params$mean_logTPM_cutoff,
+											showTopN = params$heatmap_num_genes, direction = "down") 
+```
+
+### All genes {.tabset -}
+
+```{r gene_heatmap_up, results="asis", echo=FALSE, fig.width = 9, fig.height = figScale(nrow(hmUp), 0.13, 2.6)}
+if (showOutput) {
+	cat("#### Top up-regulated genes {-}\n\n")
+	print(hmUp) 
+}
+```
+
+```{r gene_heatmap_down, results="asis", echo=FALSE, fig.width = 9, fig.height = figScale(nrow(hmDown), 0.13, 2.6)}
+if (showOutput) {
+	cat("#### Top down-regulated genes {-}\n\n")
+	print(hmDown) 
+}
+```
+
+### CIT genes {.tabset -}
+
+```{r cit_gene_heatmap_up, results="asis", echo=FALSE, fig.width = 9, fig.height = figScale(nrow(hmUp.citGenes), 0.13, 2.6)}
+if (showOutput) {
+	cat("#### Top up-regulated genes {-}\n\n")
+	print(hmUp.citGenes) 
+}
+```
+
+```{r cit_gene_heatmap_down, results="asis", echo=FALSE, fig.width = 9, fig.height = figScale(nrow(hmDown.citGenes), 0.13, 2.6)}
+if (showOutput) {
+	cat("#### Top down-regulated genes {-}\n\n")
+	print(hmDown.citGenes) 
+}
+```
+
+### Essential CIT genes {.tabset -}
+
+```{r ess_cit_gene_heatmap_up, results="asis", echo=FALSE, fig.width = 9, fig.height = figScale(nrow(hmUp.essCitGenes), 0.13, 2.6)}
+if (showOutput) {
+	cat("#### Top up-regulated genes {-}\n\n")
+	print(hmUp.essCitGenes) 
+}
+```
+
+```{r ess_cit_gene_heatmap_down, results="asis", echo=FALSE, fig.width = 9, fig.height = figScale(nrow(hmDown.essCitGenes), 0.13, 2.6)}
+if (showOutput) {
+	cat("#### Top down-regulated genes {-}\n\n")
+	print(hmDown.essCitGenes)
+}
+```
+
+```{r exit_after_dge, results="asis", cache=FALSE}
+if (params$exit_after_dge_analysis) {
+	cat("\n\n## Quit {-}\n\n")
+	cat("> Exiting to allow inspection of results from DGE analysis, to proceed with signature analysis set: `exit_after_dge_analysis = FALSE`\n\n")
+	knitr::knit_exit()
+}
+```
+
+
+# Gene signatures and pathways
+
+Computing gene signature / pathway enrichment using CAMERA
+
+```{r signatures, results="asis"}
+# Check whether it is non-human data but signatures are human
+# In this case, the HumanGeneSymbol column must be used for the signature analysis
+geneSymbolCol <- "GeneSymbol"
+if ("HumanGeneSymbol" %in% colnames(dge$genes)) {
+	endifnot("HumanGeneSymbol" %in% names(topdt), msg = "Missing HumanGeneSymbols col in topdt")
+	# Check whether signatures are human or not
+	sigGenes <- unique(unlist(signatures))
+	nonHumanMatches <- sum(sigGenes %in% dge$genes$GeneSymbol)
+	humanMatches <- sum(sigGenes %in% dge$genes$HumanGeneSymbol)
+	if (humanMatches > nonHumanMatches) {
+		geneSymbolCol <- "HumanGeneSymbol"
+		cat("> Human gene signatures used with non-human data, genes are mapped to human orthologs for the signature analysis. Consider results with caution: ortholog mapping may not be perfect and pathways/signatures may not be conserved between species.\n\n")
+	}
+}
+
+if (file.exists(cameraCacheFile)) {
+  cat("> Precomputed results loaded from: ", cameraCacheFile, "\n\n")
+  
+} else {
+  # Run camera (writes results to cameraCacheFile)
+  dir.create("cache", showWarnings = FALSE)
+  runCamera(dge, signatures, signaturesAnnot, signaturesSummary, 
+  					contrasts, topdt, cameraCacheFile,
+  					useSignaturesGeneUniverse = TRUE,
+  					use.ranks = TRUE, inter.gene.cor = params$camera_inter_gene_cor,
+  					geneSymbolCol = geneSymbolCol)
+  # Load results
+  load(cameraCacheFile)
+}
+ 
+# Order contrasts
+endifnotfound(unique(cam$Contrast), contrasts, msg = "Contrasts in camera results do not match")
+cam[, Contrast := factor(Contrast, levels = contrasts)]
+# Cutoffs for asterisks
+cutoffs <- sort(params$heatmap_signatures_fdr_asterisks)
+# The gene set collections
+collections <- signaturesSummary$Collection
+```
+
+## Signature & pathway databases
+
+### Description {.tabset -}
+
+#### Collections {-}
+
+* Short description and references for all signature / pathway databases included
+
+`r printTable(signaturesSummary, showOutput)`
+
+#### Gene signatures {-}
+
+* Table listing the genes included in the different signatures
+
+```{r print_signature_genes}
+smallCollections <- signaturesSummary[`#Sets` < 200, Collection]
+setsToPrint <- signaturesAnnot[Collection %in% smallCollections, Name]
+defs <- signatures[setsToPrint] %>%
+  purrr::map_chr(~ paste(sort(.), collapse = ", "))
+dt <- data.table(Name = names(defs), Genes = defs)
+dt <- merge(dt, signaturesAnnot, by = "Name")
+setcolorder(dt, "Collection")
+dt[, Name := stringr::str_trunc(Name, 25)]
+printDT(dt, pageLength = 10, showOutput = showOutput)
+```
+
+### Signature heatmaps {.tabset -}
+
+Signature enrichment results are vizualized as heatmaps:
+
+* **Signatures** correspond to rows and **indications/contrasts** to columns
+* For every indication/contrast, the **top ``r params$heatmap_num_signatures`` signatures** with **`FDR < `r params$heatmap_signatures_fdr_cutoff``** are included
+* The color shows the **median log2 fold-changes** of the genes in the signatures
+* **Significance level** is indicated with asterisks (FDR correction is done separately for each signature collection and contrast):
+    + **`***` `r cutoffs[1]*100`% FDR**
+    + **`**` `r cutoffs[2]*100`% FDR**
+    + **`*` `r cutoffs[3]*100`% FDR**
+
+```{r prepare_signature_heatmaps, warning=FALSE}
+if (showOutput) { 
+	hmList <- list()
+  for (c in collections) {
+  	hm <- contrastHeatmap(dt = cam[Collection==c], featureCol = "GeneSet", effectCol = "median_logFC",
+													effectTitle = "median logFC", pvalCol = "PValue",
+													fdrCol = "FDR", fdrCutoff = params$heatmap_signatures_fdr_cutoff, fdrCutoffAsterisks = cutoffs,
+													meanLevelCol = NULL, meanLevelCutoff = NULL,
+													showTopN = params$heatmap_num_signatures, direction = NULL)
+		hmList[[c]] <- hm
+  }
+}
+```
+
+```{r plot_signature_heatmaps, results="asis", eval=FALSE}
+# The problem with this is that the height of each tab should be different
+# Thus, I have to explicitly write out each chunk below to specify fig height
+# Specifying fig height in the plot (heatmap) does not help, it is then just
+# centered in the middle of a the chunk height, which has to fit the largest plot
+# TODO Check if it is somehow possible to adapt height for tabs in same chunk
+# if (showOutput) { 
+#   for (c in signaturesSummary$Collection) {
+#     cat("\n\n###", c, "{-}\n\n")  
+#   	print(hmList[[c]])
+#  }
+#}
+```
+
+```{r sig_hm_2, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[2]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[2], "{-}\n\n")  
+	print(hmList[[2]])
+}
+```
+
+```{r sig_hm_3, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[3]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[3], "{-}\n\n")  
+	print(hmList[[3]])
+}
+```
+
+```{r sig_hm_4, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[4]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[4], "{-}\n\n")  
+	print(hmList[[4]])
+}
+```
+
+```{r sig_hm_5, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[5]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[5], "{-}\n\n")  
+	print(hmList[[5]])
+}
+```
+
+```{r sig_hm_6, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[6]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[6], "{-}\n\n")  
+	print(hmList[[6]])
+}
+```
+
+```{r sig_hm_7, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[7]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[7], "{-}\n\n")  
+	print(hmList[[7]])
+}
+```
+
+```{r sig_hm_8, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[8]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[8], "{-}\n\n")  
+	print(hmList[[8]])
+}
+```
+
+```{r sig_hm_9, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[9]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[9], "{-}\n\n")  
+	print(hmList[[9]])
+}
+```
+
+```{r sig_hm_10, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[10]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[10], "{-}\n\n")  
+	print(hmList[[10]])
+}
+```
+
+```{r sig_hm_11, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[11]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[11], "{-}\n\n")  
+	print(hmList[[11]])
+}
+```
+
+```{r sig_hm_12, results="asis", fig.width=9, fig.height=figScale(nrow(hmList[[12]]), 0.13, 2.6), echo=FALSE}
+if (showOutput) {
+	cat("####", collections[12], "{-}\n\n")  
+	print(hmList[[12]])
+}
+```
+
+
+## pRED curated CIT signatures
+
+```{r prepare_cit_signature_heatmaps}
+# Prepare separate heatmaps for specific groups
+citSigGroups <- list(0:1, 0:2, 5, 6, 7)
+
+if (showOutput) { 
+	# TODO Make it package data
+	#citSigsAnnot <- fread("../data/gmt/pred_cit_signatures_meta_data_v2.0.txt")
+	citSigResults <- cam[Collection == collections[1]]
+  
+	# The heatmap with all signatures/groups has already been prepared
+	hmList <- hmList[1]
+	for (i in 1:(length(citSigGroups)+1)) {
+		# Select signatures
+		if (i == length(citSigGroups)+1) {
+			selectedSigs <- citSigsAnnot[Type == "Reference", Name]
+		} else {
+			selectedSigs <- citSigsAnnot[Group %in% citSigGroups[[i]], Name]
+		}
+		dt <- citSigResults[GeneSet %in% selectedSigs]
+		# FDR correction
+		dt[, FDR := p.adjust(PValue, method = "fdr"), by = "Contrast"]
+		# Heatmap, note we show all signatures (fdrCutoff=1, showTopN=NULL)
+		hmList[[i+1]] <- contrastHeatmap(dt = dt, featureCol = "GeneSet", effectCol = "median_logFC",
+																		 effectTitle = "median logFC", pvalCol = "PValue", fdrCol = "FDR",
+																		 fdrCutoff = 1, fdrCutoffAsterisks = cutoffs,
+																		 meanLevelCol = NULL, meanLevelCutoff = NULL,
+																		 showTopN = NULL, direction = NULL)
+	}
+}
+```
+
+### Description {-}
+
+The signature collection has been manually curated by experts. Currently, it comprises 7 groups of signatures:
+
+1. Essential signatures
+2. Expanded set of essential signatures
+3. Optional signatures, may be partially redundant with essential signatures
+4. Most likely unspecific or experimental signatures
+5. Independent set of signatures from the *Cell* immune archetypes paper ([Combes et al. 2022](https://pubmed.ncbi.nlm.nih.gov/34963056/))
+6. Cytokine signatures
+7. Recently added signatures, including response and PD effects
+
+
+### Signature heatmaps {.tabset -}
+
+Signature enrichment results are visualized as heatmaps:
+
+* **Signatures** correspond to rows and **indications/contrasts** to columns
+* For every indication/contrast, the **top ``r params$heatmap_num_signatures`` signatures** with **`FDR < `r params$heatmap_signatures_fdr_cutoff``** are included
+* The color shows the **median log2 fold-changes** of the genes in the signatures
+* **Significance level** is indicated with asterisks (FDR correction is done separately for each signature collection and contrast):
+    + **`***` `r cutoffs[1]*100`% FDR**
+    + **`**` `r cutoffs[2]*100`% FDR**
+    + **`*` `r cutoffs[3]*100`% FDR**
+
+```{r cit_hm_1, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[1]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### All groups {-}\n\n")
+	print(hmList[[1]])
+}
+```
+
+```{r cit_hm_2, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[2]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Essential (group 1) {-}\n\n")
+	print(hmList[[2]])
+}
+```
+
+```{r cit_hm_3, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[3]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Expanded essential (groups 1 & 2) {-}\n\n")
+	print(hmList[[3]])
+}
+```
+
+```{r cit_hm_4, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[4]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Combes et al. 2022 (group 5) {-}\n\n")
+	print(hmList[[4]]) 
+}
+```
+
+```{r cit_hm_5, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[5]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Cytokine (group 6) {-}\n\n")
+	print(hmList[[5]]) 
+}
+```
+
+```{r cit_hm_6, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[6]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Response, PD effects (group 7) {-}\n\n")
+	print(hmList[[6]]) 
+}
+```
+
+```{r cit_hm_7, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[7]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Reference / housekeeping genes (negative control) {-}\n\n")
+	print(hmList[[7]]) 
+}
+```
+
+### Signature heatmaps showing individual genes {.tabset -}
+
+```{r cig_gene_hms_info, results="asis", echo=FALSE}
+if (params$heatmap_signatures_remove_duplicate_genes) {
+  cat("> Genes occuring in multiple signatures are shown only once (in the first signature)\n")
+  cat("> Set `heatmap_signatures_remove_duplicate_genes = FALSE` to show genes in each signature\n")
+} else {
+  cat("> Genes occuring in multiple signatures are shown in each signature\n")
+  cat("> Set `heatmap_signatures_remove_duplicate_genes = TRUE` to show genes only in the first signature\n")
+}
+```
+
+```{r cit_gene_hms}
+# The cutoffs for showing asterisks in heatmap
+cutoffs <- sort(params$heatmap_genes_fdr_asterisks)
+
+# List with heatmaps to plot (we start at 2 because we skip the entire CIT collection
+# and like this can copy code from above for the plotting below)
+hmList <- list()
+hmList[[1]] <- NULL
+for (i in 1:(length(citSigGroups)+1)) {
+	# Select signatures
+	if (i == (length(citSigGroups)+1)) {
+		selectedSigs <- citSigsAnnot[Type == "Reference", Name]
+	} else {
+		selectedSigs <- citSigsAnnot[Group %in% citSigGroups[[i]], Name]
+	}
+	# Some signatures with too few genes may not be included in results
+	selectedSigs <- selectedSigs[selectedSigs %in% names(citSigs)]
+	
+	# Get genes from the selected signatures
+	sigGenes <- data.table()
+	for (sig_i in selectedSigs) {
+		dt <- data.table(Set = sig_i, GeneSymbol = citSigs[[sig_i]])
+		sigGenes <- rbind(sigGenes, dt)
+	}
+	if (params$heatmap_signatures_remove_duplicate_genes) {
+		sigGenes <- sigGenes[!duplicated(GeneSymbol)]
+	}
+	# Remove unknown or lowly expressed genes from the selected genes
+	sigGenes <- sigGenes[GeneSymbol %in% dge$genes[[geneSymbolCol]]]
+	dt <- data.table(topdt)
+	# Translate to non-human genes
+	if (geneSymbolCol == "HumanGeneSymbol") {
+		setnames(sigGenes, "GeneSymbol", "HumanGeneSymbol")
+		sigGenes <- joinLeftToOne(sigGenes, dge$genes[, c("GeneSymbol", "HumanGeneSymbol")], by = "HumanGeneSymbol")
+		sigGenes[, GeneSymbol := paste0(GeneSymbol, " (", HumanGeneSymbol, ")")]
+		sigGenes[, HumanGeneSymbol := NULL]
+		dt[, GeneSymbol := paste0(GeneSymbol, " (", HumanGeneSymbol, ")")]
+	}
+    
+	# Select genes and control FDR
+	dt <- dt[GeneSymbol %in% sigGenes$GeneSymbol]
+	dt[, FDR := p.adjust(P.Value, "BH"), by = "Contrast"]
+	# Heatmap
+	suppressWarnings(
+		hm <- contrastHeatmap(dt = dt, featureCol = "GeneSymbol", effectCol = "logFC",
+													effectTitle = "logFC", pvalCol = "P.Value", fdrCol = "FDR", 
+													fdrCutoff = 1, fdrCutoffAsterisks = cutoffs,
+													rowSplit = sigGenes)
+	)
+	hmList[[i+1]] <- hm 
+}
+```
+
+DGE analysis results are shown for genes of the selected signatures:
+
+* **Signature genes** correspond to rows and **indications/contrasts in columns**
+* The color shows the **log2 fold-change** from the DGE analysis (**blue: down**, **red: up**)
+* Asterisks indicate the **significance level** from the DGE analysis (FDR correction is done separately for each signature collection and contrast):
+    + **`***` `r cutoffs[1]*100`% FDR**
+    + **`**` `r cutoffs[2]*100`% FDR**
+    + **`*` `r cutoffs[3]*100`% FDR**
+
+
+```{r cit_sig_gene_hm_2, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[2]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Essential (group 1) {-}\n\n")
+	print(hmList[[2]])
+}
+```
+
+```{r cit_sig_gene_hm_3, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[3]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Expanded essential (groups 1 & 2) {-}\n\n")
+	print(hmList[[3]])
+}
+```
+
+```{r cit_sig_gene_hm_4, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[4]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Combes et al. 2022 (group 5) {-}\n\n")
+	print(hmList[[4]]) 
+}
+```
+
+```{r cit_sig_gene_hm_5, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[5]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Cytokine (group 6) {-}\n\n")
+	print(hmList[[5]]) 
+}
+```
+
+```{r cit_sig_gene_hm_6, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[6]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Response, PD effects (group 7) {-}\n\n")
+	print(hmList[[6]]) 
+}
+```
+
+```{r cit_sig_gene_hm_7, results="asis", fig.width=9, fig.height=0.13*nrow(hmList[[7]])+2.6, echo=FALSE}
+if (showOutput) {
+	cat("#### Reference / housekeeping genes (negative control) {-}\n\n")
+	print(hmList[[7]]) 
+}
+```
+
+
+# Export results
+
+* Writing results from DGE and signature analysis as DGEList object and also as text files
+    - Statistics include nominal p-values, FDR, effect sizes, etc.
+* All genes and signatures are included in the exported data (no filtering for significant results)
+
+```{r export_results, results="asis"}
+
+
+outputDir <- params$output_dir
+dir.create(outputDir, showWarnings = FALSE)
+
+# topdt files
+topdt.rds <- file.path(outputDir, paste0(params$output_file_prefix, "_dge_results_genes.rds"))
+topdt.txt <- file.path(outputDir, paste0(params$output_file_prefix, "_dge_results_genes.txt"))
+# cam files
+cam.rds <- file.path(outputDir, paste0(params$output_file_prefix, "_dge_results_signatures.rds"))
+cam.txt <- file.path(outputDir, paste0(params$output_file_prefix, "_dge_results_signatures.txt"))
+
+ saveRDS(topdt, file = topdt.rds)
+ writeTsv(topdt, topdt.txt, silent = TRUE)
+ saveRDS(cam, file = cam.rds)
+ writeTsv(cam, cam.txt, silent = TRUE)
+
+# Print info
+msg <- paste0("> Wrote files to local file system (for Arvados upload set `arv_upload_results` true):\n")
+
+msg <- paste0(msg, ">\n",
+						 "> * `", topdt.rds, "`\n",
+						 "> * `", topdt.txt, "`\n",
+						 "> * `", cam.rds, "`\n",
+						 "> * `", cam.txt, "`\n")
+cat(msg)
+```
+
+
+<!-- ---------------------------------------------------------------------- -->
+<!-- Prints the parameters and session information                          -->
+<!-- Include at end of each biokitr report                                  -->
+<!-- ---------------------------------------------------------------------- -->
+```{r session_info, results = "asis"}
+printReproducibilitySection(params, templateName, templateVersion)   
+```
+
+

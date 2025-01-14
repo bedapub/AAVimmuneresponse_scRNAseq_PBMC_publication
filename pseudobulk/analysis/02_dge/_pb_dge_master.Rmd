@@ -1,0 +1,299 @@
+---
+params:
+  title:
+    label: "Title of the report"
+    value: "DGE & signature analysis"
+    input: text
+  pseudobulk_dgelist_dir:
+    label: "Directory where the pseudo-bulk QC master saved the gene expression data (DGEList files)"
+    value: "../01_QC/gene_expression_data"
+    input: file
+  cell_types_file:
+    label: "Path to the cell types file. A tsv file with two columns: 'CellType' is a label for the cell type, and 'GctFile' gives the path to the corresponding pseudo-bulk gct file"
+    value: "../../data/cell_types.txt"
+    input: file
+  custom_signatures:
+    label: "Add custom gene sets (e.g., target genes)"
+    value:
+      TLR7induced: [IFIT1,	IFI6,	ISG15,	MX1,	CXCL11,	XAF1,	ISG20,	HERC5,	STAT1,	IL10]
+      IFNABiocarta: 	[IRF9,TYK2,JAK1,	IFNAR1,	STAT2	,IFNAR2,	STAT1]
+      IFNandCytokines: [CXCL10, CXCL11, STAT1, ISG15, HERC5, CCL20, CCL8, IL10, IL1B] 
+      HinataImmuneInf: [CD83,CXCL2,CXCL3,CXCL6,CXCL8,ICAM1,IL1B,IL6,IRF1,NFKB1,NFKBIA,OLR1,PTX3,RELA,TNFAIP2]
+      Cytotox: [CCL5, KLRB1,  GZMB, GZMK, GZMH]
+    input: text
+  output_file_prefix:
+    label: "Leave empty to use report filename as prefix for cache and results files (recommended, but works only with RStudio). If you are not using RStudio, specify a prefix for output files (needed to avoid overwriting results when running several reports in same directory; not recommended)"
+    value: # Leave empty when using RStudio (the report filename will be used)
+    input: text
+  output_dir:
+    label: "Output directory for exported results"
+    value: "results"
+    input: file
+  exclude_failed_samples:
+    label: "Exclude failed samples from the loaded data (qcFail.ids) (recommended)"
+    value: true
+    input: checkbox
+  indication_col:
+    label: "Column name defining groups of samples for which a separate analysis should be performed (in preclinical experiments this may be the tissue, in clinical studies it may be the indication or arm; leave empty to analyze all samples together)"
+    value: IFNGresp
+    input: text
+  indications:
+    label: "Define which groups (indications/tissues) from 'indication_col' should be included in the analysis (also defines the order in which they are shown in plots; ignored if 'indication_col' is not used)"
+    value: 
+    input: text
+  min_num_samples:
+    label: "Instead of specifying the indications above, you can also give the min number of samples that must be available. Indications with less samples will not be included in the analysis. Note that for analysis with paired samples, this refers to the total number of samples (e.g., enter 6 for a cutoff at 3 paired samples)"
+    value: 2
+    input: numeric
+  analysis_type:
+    label: "The type of model and contrasts: user-defined ('custom'), user-defined clinical ('custom_clin'), PD effects ('pd'), responders vs. non-responders at baseline ('response_bl'), on-treatment ('response_ot') and PD effects 'response_pd' [not yet implemented]."
+    value: custom
+    input: text
+  pd_split_var:
+    label: "Only used if analysis_type = 'pd': assess PD effects separately for the groups defined by the given column name (e.g., responders vs. non-responders; leave empty to evaluate PD effects over all patients together)"
+    value: 
+  clin_samples_type:
+    label: "Used only for 'custom_clin': include paired, baseline or on-treatment samples (for standard clin analyses such as 'pd' this is set automatically)"
+    value: 
+    choice: [paired, BL, OT]
+  paste_cols:
+    label: "Append two columns from the sample annotation (column names and values are pasted separated by '_'). E.g., set paste_cols=[Indication, Sex] and indication_col='Indication_Sex' to perform separate analysis for M/F for each indication"
+    value: 
+    input: text
+  factors:
+    label: "Specify factors and levels for categorical variables in the formula. Names only: turn those columns into factors and set levels in the order as they appear in the sampleAnnot. Named list: use specified levels. Specify only one level for setting the reference. Levels must be valide R names if they are used in 'contrasts' below."
+    value: 
+      treatment_id: [Control, Control_1h, AAV8_1h, Control_4h, AAV8_4h, Control_24h, AAV8_24h]
+      individual_id: [D1, D2, D3, D4, D5, D6]
+      IFNGresp: [IFNGneg, IFNGpos]
+      # Group: [Vehicle_D19, CD20.TCB_D19, Vehicle_D21, CD20.TCB_D21, ...]
+  formula:
+    label: "The model formula (don't forget to define categorical variables as 'factors' above). Tip: run with exit_after_design_setup=TRUE to check the design matrix before defining the contrasts. Keep in mind that when multiple categorical variables are included in the formula, the reference level of the last variable corresponds to the baseline and is not present in the design matrix."
+    value: "~ 0 + treatment_id + individual_id"
+    input: text
+  contrasts:
+      # - ...
+    label: "Character vector specifying one or multiple contrasts (passed to limma::makeContrasts()). Use levels from the variables defined in 'formula' and 'factors' above. The levels must be valid R names. Optionally, provide a more readable name for the contrast for plots using '<name> = <expression>'. If the contrast name includes spaces and special characters, it must be enclosed with backticks as shown below."
+    value:
+       - "`AAV8 - Control 1h` = AAV8_1h - Control_1h"
+       - "`AAV8 - Control 4h` = AAV8_4h - Control_4h"
+       - "`AAV8 - Control 24h` = AAV8_24h - Control_24h"
+      # - "`Control - Control 24h` = Control - Control_24h"
+      # - "`AAV8 4h - AAV8 24h` = AAV8_4h - AAV8_24h"
+    input: text
+  exit_after_design_setup:
+    label: "Exit after setting up design matrix to allow for inspection before generating rest of report"
+    value: false
+    input: checkbox
+  exit_after_contrast_setup:
+    label: "Exit after setting up contrasts to allow for inspection before generating rest of report"
+    value: false
+    input: checkbox
+  exit_after_dge_analysis:
+    label: "Exit after DGE analysis to check results before running the signature analysis"
+    value: false
+    input: checkbox
+  show_cit_genes:
+    label: "Besides the genome-wide DGE results, report DGE results for CIT signature genes in separate tabs (with P-value adjusted separately for this set of pre-selected genes)"
+    value: true
+    input: checkbox
+  num_samples_expressed_cutoff:
+    label: "Filter genes that have not CPM>1 in at least num_samples_expressed_cutoff samples (has to be explicitly set in this template, automatically using the smallest group size has not been implemented in this template)"
+    value: 5
+    input: numeric
+  exclude_sex_chromosomes:
+    label: "Remove genes on chromosomes X and Y from the analysis (only implemented for human data; recommended whenever male and female samples are jointly analyzed)"
+    value: false
+    input: checkbox
+  num_surrogate_variables:
+    label: "Surrogate variable analysis (SVA): number of SVs to be added to design matrix of each indication (vector of same length as indications; leave empty to not use SVA)"
+    value: 
+    input: text
+  logFC_cutoff:
+    label: "log2 fold-change cutoff used for counting significant DEGs (differentially expressed genes). Does not affect signature analysis."
+    value: 0.585 # =log2(1.5) or set to 1 as more stringent cutoff
+    input: numeric
+  FDR_cutoff:
+    label: "FDR cutoff used for counting significant DEGs. Does not affect signature analysis."
+    value: 0.1 # or set to 0.05 as more stringent cutoff
+    input: numeric
+  mean_logTPM_cutoff:
+    label: "Average expression level (log2 TPM) cutoff used for counting significant DEGs and including genes in the contrast heatmaps. Does not affect signature analysis."
+    value: -2 # Check mean expression plots to adjust
+    input: numeric
+  camera_inter_gene_cor:
+    label: "Camera inter.gene.cor parameter (preset value for inter-gene correlation within tested sets, leave empty or set NULL to estimate inter-gene correlation for each tested set) [TODO: leaving empty gives an error in CameraPR()]"
+    value: 0.01 # Leave empty for more stringent analysis
+    input: numeric
+  heatmap_num_genes:
+    label: "Show the top N most significant genes for each contrast in heatmaps"
+    value: 100
+    input: numeric
+  heatmap_num_signatures:
+    label: "Show the top N most significant signatures for each contrast in heatmaps"
+    value: 25
+    input: numeric
+  heatmap_genes_fdr_cutoff:
+    label: "Only include genes in heatmap that have FDR below the given cutoff in at least one contrast"
+    value: 0.2
+    input: numeric
+  heatmap_signatures_fdr_cutoff:
+    label: "Only include signatures in heatmap that have FDR below the given cutoff in at least one contrast"
+    value: 0.05
+    input: numeric
+  heatmap_genes_fdr_asterisks:
+    label: "Vector of length 3 indicating the FDR cutoffs for which asterisks are shown in the gene contrast heatmap"
+    value: [0.2, 0.1, 0.05]
+    input: numeric
+  heatmap_signatures_fdr_asterisks:
+    label: "Vector of length 3 indicating the FDR cutoffs for which asterisks are shown in the signature contrast heatmap"
+    value: [0.05, 0.01, 0.001]
+    input: numeric
+  heatmap_signatures_remove_duplicate_genes:
+    label: "For genes that are part of multiple signatures, only show in the first signature where they occur"
+    value: false # Set true for more compact heatmaps 
+    input: checkbox
+title: "`r params$title`"
+author: '`r params$author`'
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    self_contained: true
+    code_folding: hide
+    mathjax: default
+    number_sections: true
+    theme: spacelab
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, message = FALSE}
+# -----------------------------------------------------------------------------
+# Developer 
+
+# The name and version of this report template (printed in last section)
+templateName <- "Pseudobulk_DGE_Master"
+templateVersion <- "0.0.1"
+# Set TRUE to enable rmarkdown cache
+knitr::opts_chunk$set(cache = FALSE)
+
+# -----------------------------------------------------------------------------
+
+# Knitr options (important to set error=FALSE, otherwise the evaluation does not stop after an error!)
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, message = TRUE, warning = TRUE, error = FALSE)
+
+# Libraries
+library(biokitr)
+library(ComplexHeatmap)
+library(edgeR)
+library(limma)
+library(zebra, include.only = "has_value")
+
+# TODO Check that required parameters were set by user
+requiredPaths <- c("cell_types_file", "pseudobulk_dgelist_dir")
+checkPathsExist(params, requiredPaths)
+# requiredParams <- c("analysis_type")
+# checkParamsNotEmpty(params, requiredParams)
+```
+
+```{r initialize}
+# Load cell types file
+cellTypes <- readTable(params$cell_types_file, requiredCols = c("CellType", "GctFile"))
+cellTypes <- data.table(cellTypes)
+# The dgelist filenames
+cellTypes[, DgelistFile := paste0(CellType, "_DGEList.rds")]
+# Check that the files exist
+for (file_i in cellTypes$DgelistFile) {
+	endifnotfile(file.path(params$pseudobulk_dgelist_dir, file_i),
+							 msg = "DGEList file exported by QC report not found:")
+}
+```
+
+# Overview
+
+<!-- ------------------------------------------------------------ -->
+<!-- You may want to add a more detailed description of the study -->
+<!-- and the biological questions here                            -->
+<!-- ------------------------------------------------------------ -->
+
+This master report is used to generate the DGE reports for each cell type.
+
+## Input data
+
+* Gene expression data (DGEList files) directory
+    - ``r  params$pseudobulk_dgelist_dir``
+* Cell types file
+    - ``r params$cell_types_file``
+
+
+# Pseudobulk DGE reports
+
+> * Reports will be generated for the cell types listed below
+> * The yaml parameters set in the present report will be used for the rendered reports
+
+## Cell types
+
+```{r print_cell_types_master}
+printTable(cellTypes)
+```
+
+## Rendering reports
+
+```{r render_reports_master, eval=TRUE}
+for (i in 1:nrow(cellTypes)) {
+#i<-1
+  cellType_i <- cellTypes$CellType[i]
+  rmdFile_i <- paste0("pb_dge_", cellType_i, ".Rmd")
+  outFile_i <- paste0("pb_dge_", cellType_i, ".html")
+  
+  # The params for the rendered report are defined in the yaml header of this report
+  params_i <- params
+  params_i$dge_list_file <- file.path(params$pseudobulk_dgelist_dir, cellTypes$DgelistFile[i])
+  params_i$output_file_prefix <- cellType_i
+  params_i$title <- paste("Pseudo-bulk DGE:", cellType_i)
+  
+  # Remove master params
+  params_i$pseudobulk_dgelist_dir <- NULL
+  params_i$cell_types_file <- NULL
+  
+  # Create new draft
+  # I don't do this automatically because
+  # - You may want to modify the template before rendering
+  # - I have issues with multiple versions installed (biokitr for beda group and my development version)
+  # Instantiate a new template with this function or the usual way using RStudio
+  #rmarkdown::draft("_pb_qc_template.Rmd", template = "QC", package = "biokitr")
+  
+  # Copy the template
+  templateFile <- "_pb_dge_template.Rmd"
+  endifnot(file.exists(templateFile), msg = "Missing file '_pb_dge_template.Rmd'. Check that you are in the right working directory and create this file by instantiating the biokitr QC template using RStudio or via command:\n rmarkdown::draft('_pb_dge_template.Rmd', template = 'QC', package = 'biokitr')")
+  invisible(file.copy(templateFile, rmdFile_i, overwrite = TRUE))
+  
+  # Render in a new R session using Rscript_call (indeed there are issues with plotting if this is not done)
+  xfun::Rscript_call(
+    rmarkdown::render,
+    list(input = rmdFile_i, params = params_i, output_dir = ".", envir = new.env(), 
+         output_file = outFile_i, output_format = "html_document")
+  )
+}
+```
+
+
+
+
+
+
+<!-- ---------------------------------------------------------------------- -->
+<!-- Prints the parameters and session information                          -->
+<!-- Include at end of each biokitr report                                  -->
+<!-- ---------------------------------------------------------------------- -->
+```{r session_info, results = "asis"}
+printReproducibilitySection(params, templateName, templateVersion)   
+```
+
+

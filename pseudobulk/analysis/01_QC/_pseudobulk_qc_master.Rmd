@@ -1,0 +1,425 @@
+---
+params:
+  title:
+    label: "Title of the report"
+    value: "AAV: Pseudobulk - rendering QC reports"
+    input: text
+  pseudobulk_gct_dir:
+    label: "Path to the directory where the pseudo-bulk gct files are located"
+    value: "../../../Pseudobulk"
+    input: file
+  cell_types_file:
+    label: "Path to the cell types file. A tsv file with two columns: 'CellType' is a label for the cell type, and 'GctFile' gives the path to the corresponding pseudo-bulk gct file"
+    value: "../../data/cell_types.txt"
+    input: file
+  qc_flagged_samples_file:
+    label: "File defining samples with QC warnings and fails for specific cell types. To flag samples across all cell types, use qc_fail_ids and qc_warning_ids below."
+    value:   # "path/to/file.txt"
+    input: file
+  sample_annot_file:
+    label: "Sample annotation file (leave empty to use <biokit_output_dir>/annot/phenoData.meta)"
+    value: "../../data/sample_annot.txt"
+    input: file
+  use_refseq_biokit_output:
+    label: "Set TRUE to use refseq, FALSE to use ensembl gene annotation from the biokit output (this parameter is ignored when gene_annot_file and gene_length_file are set below)"
+    value: true
+    input: checkbox
+  color_vars:
+    label: "List of sample annotation columns used to color plots (separate plots will be generated for each variable) [Known issue: if you are using a custom sample_annot_file (not biokit phenoData.meta) and you don't have an ID_GROUP column, keep GROUP as the first variable here]"
+    value: [GROUP, individual_id, treatment_id, batch, IFNGresp, newcond, compound_name, treatment_time] # ["GROUP", "Indiction", "TimePoint"]
+    input: text
+  tissue_specific_plots:
+    label: "Set true to include separate analyses for each tissue ('tissue_column' is used for grouping, can be something other than tissue)"
+    value: false
+    input: checkbox
+  tissue_column:
+    label: "Name of column used to group samples for tissue-specific plots (leave empty to use first col that matches 'tissue' (not case-sensitive))"
+    value: 
+    input: text
+  tissue_min_num_samples:
+    label: "The minimum number of samples of a given tissue (see tissue_column) to perform a tissue-specific PCA analysis"
+    value: 6
+    input: numeric
+  include_failed_samples:
+    label: "Do not exclude failed samples (qc_fail_ids) from analysis in this report (normalization, PCA, ...): usually NOT recommended"
+    value: false
+    input: checkbox
+  qc_fail_ids:
+    label: "List of sample IDs to be excluded from downstream analysis (matched in ID column of sample annotation)"
+    value:    # [sample_1, sample_2]
+    input: text
+  qc_fail_desc:
+    label: "List with short comment/reason for each excluded sample (see qc_fail_ids above)"
+    value:    # ["Outlier PCA", "Low DV200; Outlier"]
+    input: text
+  qc_warning_ids:
+    label: "List of sample IDs with manual QC warnings (matched in ID column of sample annotation, added to any automatic warnings)"
+    value: []   # [sample_X, sample_Y]
+    input: text
+  qc_warning_desc:
+    label: "List with short comment/reason for each manually added QC warning (see qc_warning_ids above)"
+    value: []    # ["Outlier PCA", "Distinct expression distribution"]
+    input: text
+  auto_qc_flags:
+    label: "Define one or more conditions to automatically set QC warning and/or fail flags"
+    value:
+      condition1:
+         column_name: "Tot_counts" # A column name in the sample annotation (including the loaded QC stats)
+         cutoff: 1000000 # A cutoff
+         direction: "<" # Set flag if value is '<', '<=', '>', '>=' or '=' the cutoff value ('=' can also be used for categorical variables or strings)
+         flag: "WARNING" # Which flag to set (WARNING or FAIL)
+      condition2:
+         column_name: "Tot_counts" # A column name in the sample annotation (including the loaded QC stats)
+         cutoff: 300000 # A cutoff
+         direction: "<" # Set flag if value is '<', '<=', '>', '>=' or '=' the cutoff value ('=' can also be used for categorical variables or strings)
+         flag: "FAIL" # Which flag to set (WARNING or FAIL)
+  cpm_cutoff:
+    label: "Filter genes that have not CPM>cpm_cutoff in at least num_samples_expressed_cutoff samples. Does NOT affect exported data."
+    value: 10
+    input: numeric
+  count_cutoff:
+    label: "Filter genes that have not CPM>cpm_cutoff AND count>count_cutoff in at least num_samples_expressed_cutoff samples. The count_cutoff is mainly relevant when there are samples with very low total number of reads, such as in pseudobulk data. Does NOT affect exported data."
+    value: 1
+    input: numeric
+  num_samples_expressed_cutoff:
+    label: "Filter genes that have not CPM>cpm_cutoff in at least num_samples_expressed_cutoff samples. -1: use smallest group size. Does NOT affect exported data"
+    value: 10
+    input: numeric
+  qc_stats_table_cols:
+    label: "Additional columns from sample annotation for qc stats table (only added if present, coloring of outliers only if numeric)"
+    value: [percent_mito, n_counts, n_genes]
+    input: text
+  pca_plot_x:
+    label: "Principal components to plot on x-axis (plots pca_plot_x[i] vs. pca_plot_y[i]; leave empty to disable PCA analysis)"
+    value: [1, 3]
+    input: text
+  pca_plot_y:
+    label: "Principal components to plot on y-axis (plots pca_plot_x[i] vs. pca_plot_y[i]; leave empty to disable PCA analysis)"
+    value: [2, 4]
+    input: text
+  var_cor_num_PCs:
+    label: "Variable correlation analysis: number of principal components to include (must be smaller than the number of samples)"
+    value: 15
+    input: numeric
+  var_cor_rsq_threshold_pct:
+    label: "Variable correlation analysis: rsq threshold (in %) for top variables to be included in plots"
+    value: 25
+    input: numeric
+  var_cor_tissue_specific_heatmaps_only:
+    label: "Variable correlation analysis: include only tissue-specific heatmaps (recommended). Set false to include also diagnostic plots (PCs vs. top variables, this may generate a lot of plots). This parameter only has an effect if tissue_specific_plots=true"
+    value: true
+    input: checkbox
+  genes_of_interest:
+    label: "List of symbols for genes of interest (expression plots included)"
+    value: [CXCL10, CXCL11, STAT1, ISG15, HERC5, CCL20, CCL8, IL10, IL1B, CCL5, KLRB1, TNFRSF10, GZMB, GZMK, XIST, ACTB, RPS28, GAPDH]  # Some interesting genes (note, these are human genes and will not be shown for other species)
+    input: text
+  genes_of_interest_unit:
+    label: "Expression metric used to plot genes of interest (CPM, RPKM or TPM, always log2 transformed)"
+    value: "TPM"
+    choice: ["CPM", "RPKM", "TPM"]
+  export_with_qc_stats:
+    label: "Include QC metrics loaded from multiqc (Picard, STAR, fastqc) in the exported DGEList 'samples'. This adds many columns to the sample annotation, which may not be so convenient for printing etc. in the DGE report. But of course it's needed if those columns are used as covariates in the DGE analysis."
+    value: true
+    input: checkbox
+  gct_count_file:
+    label: "Relative path to the gct count file (leave empty to use <biokit_output_dir>/gct/<projectName>_count.gct; path is relative to biokit_output_dir)"
+    value: 
+    input: file
+  gene_annot_file:
+    label: "Relative path to the gene annotation file  (leave empty to use <biokit_output_dir>/annot/refseq.annot.gz)"
+    value: "../../data/ensembl.annot.gz"
+    input: file
+  gene_length_file:
+    label: "Relative path to the gene length file  (leave empty to use <biokit_output_dir>/annot/refseq.geneLength.gz)"
+    value: "../../data/ensembl.geneLength.gz"
+    input: file
+  biokit_log_file:
+    label: "Relative path to the biokit log file (leave empty to use <biokit_output_dir>/log/workflow_multi.log). The path must be relative starting from the biokit_output_dir."
+    value:
+    input: file
+  picard_stats_file:
+    label: "Relative path to the MultiQC Picard stats file (leave empty to use <biokit_output_dir>/multiqc_data/multiqc_picard_RnaSeqMetrics.txt)"
+    value: 
+    input: file
+  star_stats_file:
+    label: "Relative path to the MultiQC star stats file (leave empty to use <biokit_output_dir>/multiqc_data/multiqc_star.txt)"
+    value: 
+    input: file
+  fastqc_stats_file:
+    label: "Relative path to the MultiQC fastqc stats file (leave empty to use <biokit_output_dir>/multiqc_data/multiqc_fastqc.txt)"
+    value: 
+    input: file
+  organism:
+    label: "Only used if there is no biokit log file: the organism name (human, mouse, rat, cyno, pig, rabbit or full names such as homo sapiens) or taxonomy ID"
+    value: human
+    input: checkbox
+  study_description:
+    label: "Only used if there is no biokit log file: provide short description of data"
+    value: "Ex vivo scRNA-seq data AAV treatment PBMC"
+    input: text
+  output_file_prefix:
+    label: "Only used if there is no biokit log file: provide a prefix for output files"
+    value: "AAV_pseudobulk"
+    input: text
+  error_for_missing_samples:
+    label: "Set true to stop with error if samples in the sample_annot_file are missing in the gct file (default). Set false to remove the missing samples from the sampleAnnot and print a warning (this option is commonly used for pseudo-bulk analyses, where cell types may be missing in some samples)"
+    value: false
+    input: checkbox
+  error_for_missing_genes:
+    label: "Set true to stop with error if genes in the gct file are missing in the gene annotation files (default). Set false to remove the missing genes from the gct file and print a warning (this option may be used if the correct annotation files are not available)"
+    value: false
+    input: checkbox
+  output_dir:
+    label: "Output directory where exported files are written"
+    value: "gene_expression_data"
+    input: file
+title: "`r params$title`"
+author: '`r params$author`'
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    self_contained: true
+    code_folding: hide
+    mathjax: default
+    number_sections: true
+    theme: spacelab
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, message = FALSE}
+# -----------------------------------------------------------------------------
+# Developer
+
+# The name and version of this report template (printed in last section)
+templateName <- "Pseudobulk_QC_Master"
+templateVersion <- "0.0.2"
+# Set TRUE to enable rmarkdown cache
+knitr::opts_chunk$set(cache = FALSE, cache.lazy = FALSE)
+# Set FALSE to skip all output (plots, tables), useful for debugging 
+showOutput <- TRUE
+
+# -----------------------------------------------------------------------------
+
+# Knitr options (important to set error=FALSE, otherwise the evaluation does not stop after an error!)
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, message = TRUE, warning = TRUE, error = FALSE)
+
+# Libraries
+library(biokitr)
+```
+
+```{r load_data_master}
+# Check required files
+requiredPaths <- c("pseudobulk_gct_dir", "cell_types_file", "sample_annot_file", "gene_annot_file", "gene_length_file")
+checkPathsExist(params, requiredPaths)
+
+# Load cell types file
+cellTypes <- readTable(params$cell_types_file, requiredCols = c("CellType", "GctFile"))
+
+# Construct required log params here
+logs <- list(studyDesc = params$study_description,
+             biokitOutputFilePrefix = params$output_file_prefix,
+             organism = dplyr::if_else(tolower(params$organism) %in% c("human", "homo sapiens"), "human", "not_human"))
+
+# Load sample annot
+sampleAnnot <- readSampleAnnot(file = params$sample_annot_file, report = "QC")
+# I use data.table (sorry dplyr friends...)
+sampleAnnot <- data.table(sampleAnnot)
+# Add QC columns to sampleAnnot (does not remove any samples yet)
+# Note, these flags will apply for all cell types
+# Samples can be flagged in individual cell types using qc_flagged_samples_file
+sampleAnnot <- addQcFlags(sampleAnnot, qcFail.ids = params$qc_fail_ids, qcFail.desc = params$qc_fail_desc,
+                          qcWarning.ids = params$qc_warning_ids, qcWarning.desc = params$qc_warning_desc)
+# Exclude failed samples -- Not done in the master for pseudo-bulk
+sampleAnnot.all <- sampleAnnot
+#if (!params$include_failed_samples) {
+#  sampleAnnot <- sampleAnnot.all[QC_FAIL != TRUE]
+#}
+```
+
+
+# Overview
+
+<!-- ------------------------------------------------------------ -->
+<!-- You may want to add a more detailed description of the study -->
+<!-- and the biological questions here                            -->
+<!-- ------------------------------------------------------------ -->
+
+This master report is used to generate the QC reports for each cell type. After generating a first version of the QC reports including all samples, QC failed samples can be flagged and excluded from the exported data.
+
+**Study description**
+
+* `r logs$studyDesc`
+
+## Design {.tabset}
+
+* Number of samples: ``r nrow(sampleAnnot.all)``
+* Number of groups: ``r length(unique(sampleAnnot.all$GROUP))``
+* Reference genome: ``r logs$organism``
+
+### Hide {-}
+
+### Show #samples by group {-}
+
+```{r num_samples_by_group_master}
+# Number of samples by group
+df <- sampleAnnot.all %>% group_by(GROUP) %>% tally()
+printTable(df, showOutput)
+```
+
+### Show sample annotation {-}
+
+Sample annotation: ``r params$sample_annot_file``
+
+```{r samples_table_master}
+# Print all samples
+printDT(sampleAnnot.all, showOutput)
+```
+
+
+# QC
+
+## Flagged samples
+
+```{r print_qc_info, results = "asis"}
+if (params$include_failed_samples == FALSE) {
+  cat("> QC failed samples will be excluded from exported data and downstream analyses")
+} else {
+  cat("> **WARNING**: QC failed samples were NOT excluded from analyses and exported data (set `include_failed_samples=FALSE` to remove them)")
+}
+```
+
+For pseudo-bulk, samples with QC fails and warnings can be set using yaml parameters:
+
+* `qc_fail_ids` and `qc_warning_ids`: Flag samples globally for all cell types
+* `qc_flagged_samples_file`: Use this file to flag samples in specific cell types
+
+### Global QC flags {-}
+
+```{r print_global_qc_flags}
+if (zebra::has_value(sampleAnnot.all$QC)) {
+  dt <- sampleAnnot.all[QC != "", list(ID, GROUP, QC_FAIL, QC_FAIL_DESC, QC_WARNING, QC_WARNING_DESC)]
+  printTable(dt, showOutput)
+} else {
+  cat("Use `qc_fail_ids` and `qc_warning_ids` to set QC flags for all cell types")
+}
+```
+
+### Cell-type specific QC flags {-}
+
+```{r print_qc_flags, results = "asis"}
+qcFlags <- NULL
+if (zebra::has_value(params$qc_flagged_samples_file)) {
+  # Load QC flags file
+  cat("Loading", params$qc_flagged_samples_file, "\n")
+  qcFlags <- readTable(params$qc_flagged_samples_file,
+                       requiredCols = c("QC_flag", "SampleID", "CellType", "Comment"),
+                       sep = "\t")
+  qcFlags <- data.table(qcFlags)
+  qcFlags[, QC_flag := toupper(QC_flag)]
+  # Check file format
+  endifnot(qcFlags$QC_flag %in% c("FAIL", "WARNING"), 
+  				 msg = "QC_flag column must have values FAIL or WARNING")
+  notFound <- qcFlags[!(SampleID %in% sampleAnnot$ID), SampleID]
+  endifnot(!zebra::has_value(notFound), msg = paste("SampleID not found in sampleAnnot ID column:",
+  																									paste(notFound, collapse = ", ")))
+  notFound <- qcFlags[!(CellType %in% cellTypes$CellType), CellType]
+  endifnot(!zebra::has_value(notFound), msg = paste("CellType not found in cell_types_file:",
+  																									paste(notFound, collapse = ", ")))
+  
+  # TODO Heatmap viz in tab
+  # dt <- data.table(qcFlags)
+  # dt[, QC := ""]
+  # dt[QC_warning == 1, QC := "QC warning"]
+  # dt[QC_fail == 1, QC := "QC fail"]
+  # x <- reshape2::acast(dt, "SampleID ~ CellType", value.var = "QC")
+  
+  printTable(qcFlags)
+} else {
+   cat("Use `qc_flagged_samples_file` to set QC flags for specifici cell types")
+}
+```
+
+
+
+# Pseudobulk QC reports
+
+> * Reports will be generated for the cell types listed below
+> * The yaml parameters set in the present report will be used for the rendered reports
+
+## Cell types
+
+```{r print_cell_types_master}
+printTable(cellTypes)
+```
+
+## Rendering reports
+
+```{r render_reports_master, eval=TRUE}
+for (i in 1:nrow(cellTypes)) {
+  cellType_i <- cellTypes$CellType[i]
+  rmdFile_i <- paste0("Pseudobulk_QC_", cellType_i, ".Rmd")
+  outFile_i <- paste0("Pseudobulk_QC_", cellType_i, ".html")
+  
+  # The params for the rendered report are defined in the yaml header of this report
+  params_i <- params
+  params_i$gct_count_file <- file.path(params$pseudobulk_gct_dir, cellTypes$GctFile[i])
+  params_i$output_file_prefix <- cellType_i
+  params_i$title <- paste("Pseudo-bulk QC:", cellType_i)
+  
+  # Remove master params
+  params_i$pseudobulk_gct_dir <- NULL
+  params_i$cell_types_file <- NULL
+  params_i$qc_flagged_samples_file <- NULL
+  
+  # Add cell-type-specific QC flags
+  if (zebra::has_value(qcFlags)) {
+  	fail_i <- qcFlags[CellType == cellType_i & QC_flag == "FAIL" & !(SampleID %in% params$qc_fail_ids), SampleID]
+  	failDesc_i <- qcFlags[CellType == cellType_i & QC_flag == "FAIL" & !(SampleID %in% params$qc_fail_ids), Comment]
+  	if (length(fail_i) > 0) {
+  		params_i$qc_fail_ids <- c(params_i$qc_fail_ids, fail_i)
+  		params_i$qc_fail_desc <- c(params_i$qc_fail_desc, failDesc_i)
+  	}
+  	warn_i <- qcFlags[CellType == cellType_i & QC_flag == "WARNING" & !(SampleID %in% params$qc_warning_ids), SampleID]
+  	warnDesc_i <- qcFlags[CellType == cellType_i & QC_flag == "WARNING" & !(SampleID %in% params$qc_warning_ids), Comment]
+  	if (length(warn_i) > 0) {
+  		params_i$qc_warning_ids <- c(params_i$qc_warning_ids, warn_i)
+  		params_i$qc_warning_desc <- c(params_i$qc_warning_desc, warnDesc_i)
+  	}
+  }  
+  
+  # Create new draft
+  # I don't do this automatically because
+  # - You may want to modify the template before rendering
+  # - I have issues with multiple versions installed (biokitr for beda group and my development version)
+  # Instantiate a new template with this function or the usual way using RStudio
+  #rmarkdown::draft("_pb_qc_template.Rmd", template = "QC", package = "biokitr")
+  
+  # Copy the template
+  templateFile <- "_Pseudobulk_QC_template.Rmd"
+  endifnot(file.exists(templateFile), msg = "Missing file '_Pseudobulk_QC_template.Rmd'. Check that you are in the right working directory and create this file by instantiating the biokitr QC template using RStudio or via command:\n rmarkdown::draft('_Pseudobulk_QC_template.Rmd', template = 'QC', package = 'biokitr')")
+  invisible(file.copy("_Pseudobulk_QC_template.Rmd", rmdFile_i, overwrite = TRUE))
+  
+  # Render in a new R session using Rscript_call (indeed there are issues with plotting if this is not done)
+  xfun::Rscript_call(
+    rmarkdown::render,
+    list(input = rmdFile_i, params = params_i, output_dir = ".", envir = new.env(), 
+         output_file = outFile_i, output_format = "html_document")
+  )
+}
+```
+
+
+
+<!-- ---------------------------------------------------------------------- -->
+<!-- Prints the parameters and session information                          -->
+<!-- Include at end of each biokitr report                                  -->
+<!-- ---------------------------------------------------------------------- -->
+```{r session_info_master, results = "asis"}
+printReproducibilitySection(params, templateName, templateVersion)   
+```
